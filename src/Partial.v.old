@@ -1,0 +1,2932 @@
+(* Copyright 2022 Centrum Wiskunde & Informatica
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a
+ * copy of this software and associated documentation files (the "Software"),
+ * to deal in the Software without restriction, including without limitation
+ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+ * and/or sell copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included
+ * in all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+ * OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+ * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+ * DEALINGS IN THE SOFTWARE. *)
+
+(* ON SEPERATION LOGIC *)
+(* Author: Hans-Dieter A. Hiep *)
+
+From Coq Require Import ZArith.
+From Coq Require Import Classical.
+From Coq Require Import Setoid.
+From Coq Require Import Morphisms.
+From Coq Require Import FunctionalExtensionality.
+From Coq Require Import ProofIrrelevance.
+From Coq Require Import Ensembles.
+From Coq Require Import List.
+
+(* =================================================
+ *
+ * Section 2: Separation logic: syntax and semantics
+ *
+ * ================================================= *)
+
+Definition SomeZ (v: Z) := Some v.
+Coercion SomeZ: Z >-> option.
+
+Definition heap := Z -> option Z.
+Definition dom (h: heap): Ensemble Z :=
+  fun n => h n <> None.
+
+Proposition dom_dec (h: heap) (x: Z): dom h x \/ ~dom h x.
+unfold dom. destruct (h x).
+left. intro. inversion H.
+right. intro. apply H. reflexivity.
+Qed.
+
+Definition Partition (h h1 h2: heap): Prop :=
+  ((Included Z (dom h) (Union Z (dom h1) (dom h2)) /\
+    Disjoint Z (dom h1) (dom h2)) /\
+   (forall n, dom h1 n -> h n = h1 n)) /\
+  (forall n, dom h2 n -> h n = h2 n).
+
+Proposition partition_lunique (h h' h1 h2: heap):
+  Partition h h1 h2 /\ Partition h' h1 h2 -> h = h'.
+intro. destruct H.
+apply functional_extensionality; intro.
+destruct H. destruct H. destruct H.
+destruct H0. destruct H0. destruct H0.
+pose proof (dom_dec h1 x).
+destruct H7.
+rewrite H2. rewrite H5. reflexivity. assumption. assumption.
+pose proof (dom_dec h2 x).
+destruct H8.
+rewrite H1. rewrite H4. reflexivity. assumption. assumption.
+assert (~dom h x).
+intro.
+unfold Included in H.
+specialize (H x H9). destruct H.
+apply H7. assumption.
+apply H8. assumption.
+assert (~dom h' x).
+intro.
+unfold Included in H0.
+specialize (H0 x H10). destruct H0.
+apply H7. assumption.
+apply H8. assumption.
+unfold dom in H9. unfold dom in H10.
+destruct (h x). exfalso. apply H9. intro. inversion H11.
+destruct (h' x). exfalso. apply H10. intro. inversion H11.
+reflexivity.
+Qed.
+
+Proposition partition_notdom (h h1 h2: heap):
+  Partition h h1 h2 ->
+  forall n, h n = None -> h1 n = None /\ h2 n = None.
+intros H n P.
+unfold Partition in H; repeat destruct H.
+specialize H1 with n; specialize H0 with n.
+unfold dom in H0, H1.
+split.
+1: destruct (h1 n); try reflexivity.
+2: destruct (h2 n); try reflexivity.
+all: symmetry; rewrite <- P.
+1: apply H1.
+2: apply H0.
+all: intro; inversion H3.
+Qed.
+
+Proposition union_comm {U: Type} {A B: U -> Prop}:
+  Union U A B = Union U B A.
+apply Extensionality_Ensembles.
+unfold Same_set; unfold Included; unfold Ensembles.In.
+split; intros; destruct H.
+1,3: right; assumption.
+1,2: left; assumption.
+Qed.
+
+Proposition intersection_comm {U: Type} {A B: U -> Prop}:
+  Intersection U A B = Intersection U B A.
+apply Extensionality_Ensembles.
+unfold Same_set; unfold Included; unfold Ensembles.In.
+split; intros; destruct H.
+all: constructor; assumption.
+Qed.
+
+Proposition disjoint_comm {U: Type} {A B: U -> Prop}:
+  Disjoint U A B <-> Disjoint U B A.
+split; intro; destruct H; constructor; intros.
+all: rewrite intersection_comm; apply H.
+Qed.
+
+Proposition partition_comm (h h1 h2: heap):
+  Partition h h1 h2 -> Partition h h2 h1.
+unfold Partition; intro.
+destruct H as (((H & H1) & H2) & H3).
+split. split. split.
+rewrite union_comm; assumption.
+rewrite disjoint_comm; assumption.
+assumption.
+assumption.
+Qed.
+
+Proposition disjoint_left (h1 h2: heap):
+  Disjoint Z (dom h1) (dom h2) ->
+  forall n, h1 n <> None -> h2 n = None.
+intros H n P.
+destruct H; specialize H with n.
+remember (h2 n); destruct o; try auto.
+exfalso; apply H.
+constructor; unfold Ensembles.In; unfold dom.
+assumption.
+intro. rewrite <- Heqo in H0. inversion H0.
+Qed.
+
+Proposition disjoint_right (h1 h2: heap):
+  Disjoint Z (dom h1) (dom h2) ->
+  forall n, h2 n <> None -> h1 n = None.
+intros H n P.
+destruct H; specialize H with n.
+remember (h1 n); destruct o; try auto.
+exfalso; apply H.
+constructor; unfold Ensembles.In; unfold dom.
+intro. rewrite <- Heqo in H0. inversion H0.
+assumption.
+Qed.
+
+Proposition partition_elim (h h1 h2: heap):
+  Partition h h1 h2 ->
+  forall n, h n <> None ->
+    (h1 n = h n /\ h2 n = None) \/ (h1 n = None /\ h2 n = h n).
+intros H n P.
+unfold Partition in H; repeat destruct H.
+unfold Included in H; specialize H with n.
+unfold Ensembles.In in *.
+assert (Union Z (dom h1) (dom h2) n) by (apply H; apply P).
+destruct H3; unfold In in H3.
+left; split.
+symmetry; apply H1; assumption.
+eapply disjoint_left. apply H2. assumption.
+right; split.
+eapply disjoint_right. apply H2. assumption.
+symmetry. apply H0; assumption.
+Qed.
+
+Proposition partition_union_in_dom (h h1 h2: heap):
+  Partition h h1 h2 ->
+  Included Z (Union Z (dom h1) (dom h2)) (dom h).
+intros H n P.
+unfold Partition in H; repeat destruct H.
+destruct P; unfold In in *.
+specialize H1 with x.
+intro. apply H3. rewrite <- H1; assumption.
+specialize H0 with x.
+intro. apply H3. rewrite <- H0; assumption.
+Qed.
+
+Definition V := nat.
+Definition dummy: V := 0.
+Definition dummy': V := 1.
+
+Fixpoint maximum (xs: list V): V :=
+  match xs with
+  | nil => dummy
+  | (x::xs) => max x (maximum xs)
+  end.
+Proposition maximum_prop (xs: list V):
+  forall x, In x xs -> x <= maximum xs.
+intros. induction xs. inversion H.
+simpl. destruct H.
+rewrite H.
+apply Nat.le_max_l.
+destruct (le_gt_dec a (maximum xs)).
+rewrite max_r; try assumption.
+apply IHxs; assumption.
+unfold gt in g.
+apply Nat.lt_le_incl in g.
+rewrite max_l; try assumption.
+eapply le_trans.
+apply IHxs; assumption.
+assumption.
+Qed.
+
+Proposition maximum_app (xs ys: list V):
+  maximum (xs ++ ys) = max (maximum xs) (maximum ys).
+induction xs; simpl. reflexivity.
+rewrite IHxs.
+apply Nat.max_assoc.
+Qed.
+
+Definition fresh (xs: list V): V := S (maximum xs).
+Proposition fresh_prop (xs: list V):
+  forall x, In x xs -> x < fresh xs.
+unfold fresh.
+intros. apply le_lt_n_Sm.
+apply maximum_prop; assumption.
+Qed.
+Proposition fresh_notIn (xs: list V):
+  ~In (fresh xs) xs.
+intro.
+pose proof (fresh_prop xs).
+specialize H0 with (fresh xs).
+specialize (H0 H).
+eapply Nat.lt_irrefl. apply H0.
+Qed.
+
+Proposition fresh_app (xs ys: list V):
+  fresh (xs ++ ys) = max (fresh xs) (fresh ys).
+unfold fresh.
+rewrite maximum_app.
+simpl. reflexivity.
+Qed.
+
+Proposition fresh_notInApp (xs ys: list V):
+  ~In (fresh (xs ++ ys)) xs.
+rewrite fresh_app.
+destruct (Nat.max_dec (fresh xs) (fresh ys)).
+rewrite e. apply fresh_notIn.
+rewrite e.
+pose proof (Max.le_max_l (fresh xs) (fresh ys)).
+rewrite e in H.
+destruct (Nat.eq_dec (fresh xs) (fresh ys)).
+rewrite <- e0. apply fresh_notIn.
+apply Nat.le_lteq in H. destruct H. clear n.
+intro.
+apply fresh_prop in H0.
+eapply Nat.lt_irrefl.
+eapply Nat.lt_trans. apply H. apply H0.
+exfalso. apply n. assumption.
+Qed.
+
+Proposition fresh_dummy: fresh (dummy :: nil) = dummy'.
+unfold fresh. simpl. unfold dummy. unfold dummy'. reflexivity.
+Qed.
+
+Definition store := V -> Z.
+
+Definition store_update (s: store) (x: V) (v: Z): store :=
+  fun y => if Nat.eq_dec x y then v else s y.
+Definition heap_update (h: heap) (n: Z) (v: Z): heap :=
+  fun m => if Z.eq_dec n m then v else h m.
+
+Proposition heap_update_p1 (h: heap) (n v: Z):
+  forall m, m = n -> heap_update h n v m = v.
+intros.
+unfold heap_update.
+symmetry in H.
+destruct (Z.eq_dec n m).
+reflexivity.
+exfalso. apply n0. assumption.
+Qed.
+
+Proposition heap_update_p2 (h: heap) (n v: Z):
+  forall m, Subtract Z (dom h) n m -> heap_update h n v m = h m.
+intros.
+unfold heap_update.
+destruct (Z.eq_dec n m).
+destruct H.
+exfalso. apply H0. rewrite e. constructor.
+reflexivity.
+Qed.
+
+Proposition heap_update_p3 (h: heap) (n v: Z):
+  forall m, ~Union Z (dom h) (Singleton Z n) m -> heap_update h n v m = None.
+intros.
+unfold heap_update.
+destruct (Z.eq_dec n m).
+exfalso; apply H. right. unfold Ensembles.In. rewrite e. constructor.
+remember (h m) as o; destruct o; try reflexivity.
+exfalso; apply H. left. unfold Ensembles.In. intro.
+  rewrite <- Heqo in H0. inversion H0.
+Qed.
+
+Proposition heap_update_dom (h: heap) (n v: Z):
+  dom (heap_update h n v) = Union Z (dom h) (Singleton Z n).
+apply Extensionality_Ensembles.
+split; unfold Included; unfold Ensembles.In; intros.
+- unfold dom in H; unfold heap_update in H.
+  destruct (Z.eq_dec n x).
+  right. rewrite e. constructor.
+  left. unfold Ensembles.In. apply H.
+- destruct H; unfold Ensembles.In in H; unfold dom in H;
+  unfold heap_update; unfold dom;
+  destruct (Z.eq_dec n x).
+  1,3: intro; inversion H0.
+  assumption.
+  inversion H. exfalso. apply n0. assumption.
+Qed.
+
+Proposition dom_heap_update_Singleton {h: heap} {v w w': Z}:
+  dom (heap_update h w v) = Singleton Z w' -> w = w'.
+intro.
+assert (Singleton Z w' w). {
+  rewrite <- H. unfold dom. unfold heap_update.
+  destruct (Z.eq_dec w w).
+  intro. inversion H0. exfalso. apply n. reflexivity. }
+inversion H0. reflexivity.
+Qed.
+
+Proposition dom_heap_update_Included_Singleton (h: heap) (v w: Z):
+  dom (heap_update h w v) = Singleton Z w <->
+  Included Z (dom h) (Singleton Z w).
+split; intro.
+- intro. unfold Ensembles.In. intro.
+  rewrite <- H. unfold dom. unfold heap_update.
+  destruct (Z.eq_dec w x).
+  intro. inversion H1.
+  apply H0.
+- apply Extensionality_Ensembles; unfold Same_set;
+  unfold Included in *; unfold Ensembles.In in *.
+  split; intros.
+  + unfold dom in H0; unfold heap_update in H0.
+    destruct (Z.eq_dec w x). rewrite e. constructor.
+    apply H. apply H0.
+  + inversion H0. unfold dom; unfold heap_update.
+    destruct (Z.eq_dec x x). intro. inversion H2.
+    exfalso. apply n. reflexivity.
+Qed.
+
+Proposition heap_update_lookup (h: heap) (w v: Z):
+  heap_update h w v w = v.
+unfold heap_update.
+destruct (Z.eq_dec w w).
+reflexivity.
+exfalso. apply n. reflexivity.
+Qed.
+
+Proposition store_update_lookup (s: store) (x: V) (v: Z):
+  store_update s x v x = v.
+unfold store_update.
+destruct (Nat.eq_dec x x).
+reflexivity.
+exfalso. apply n. reflexivity.
+Qed.
+
+Proposition store_update_lookup_dom (s: store) (x: V) (xs: list V) (v: Z):
+  In x xs -> store_update s (fresh xs) v x = s x.
+intro.
+unfold store_update.
+destruct (Nat.eq_dec (fresh xs) x). 2: reflexivity.
+rewrite <- e in H.
+exfalso. apply (fresh_notIn xs H).
+Qed.
+
+Proposition store_update_collapse (s: store) (x: V) (v w: Z):
+  (store_update (store_update s x v) x w) =
+  (store_update s x w).
+apply functional_extensionality; intro z.
+unfold store_update.
+destruct (Nat.eq_dec x z); reflexivity.
+Qed.
+
+Proposition store_update_nop (s: store) (x: V):
+  store_update s x (s x) = s.
+apply functional_extensionality; intro z.
+unfold store_update. destruct (Nat.eq_dec x z).
+rewrite e. reflexivity. reflexivity.
+Qed.
+
+Proposition included_union_split {T: Type} {A B C: T -> Prop}:
+  Included T (Union T A B) C <-> Included T A C /\ Included T B C.
+unfold Included; unfold Ensembles.In. split; intro.
+- split.
+  all: intros; apply H.
+  1: left. 2: right.
+  all: assumption.
+- destruct H. intros.
+  destruct H1.
+  apply H. assumption.
+  apply H0. assumption.
+Qed.
+
+Proposition included_union_left {T: Type} {A B: T -> Prop}:
+  Included T A (Union T A B).
+intro. intro. left. assumption.
+Qed.
+
+Proposition included_union_left_step {T: Type} {A B C: T -> Prop}:
+  Included T A B -> Included T A (Union T B C).
+intro. intro. intro. left. apply H. assumption.
+Qed.
+
+Proposition included_union_right {T: Type} {A B: T -> Prop}:
+  Included T B (Union T A B).
+intro. intro. right. assumption.
+Qed.
+
+Proposition included_union_right_step {T: Type} {A B C: T -> Prop}:
+  Included T A C -> Included T A (Union T B C).
+intro. intro. intro. right. apply H. assumption.
+Qed.
+
+Proposition disjoint_union_split {T: Type} {A B C: T -> Prop}:
+  Disjoint T (Union T A B) C <-> Disjoint T A C /\ Disjoint T B C.
+split; intro.
+- destruct H. split.
+  1,2: constructor; intros; intro.
+  1,2: destruct H0.
+  1,2: apply H with (x := x).
+  constructor. left.
+  1,2: assumption.
+  constructor. right.
+  1,2: assumption.
+- destruct H.
+  constructor; intros; intro.
+  destruct H; destruct H0.
+  specialize (H x).
+  specialize (H0 x).
+  destruct H1. destruct H1.
+  apply H. constructor; assumption.
+  apply H0. constructor; assumption.
+Qed.
+
+Proposition disjoint_singleton {T: Type} {A: T -> Prop} {x: T}:
+  Disjoint T (Singleton T x) A <-> ~A x.
+split; intro.
+- destruct H. intro. specialize (H x).
+  apply H. constructor. constructor. assumption.
+- constructor. intros. intro.
+  apply H. destruct H0. destruct H0. assumption.
+Qed.
+
+Proposition union_assoc {T: Type} {A B C: T -> Prop}:
+  Union T (Union T A B) C = Union T A (Union T B C).
+apply Extensionality_Ensembles.
+unfold Same_set.
+repeat rewrite included_union_split.
+split. split. split.
+apply included_union_left.
+apply included_union_right_step.
+apply included_union_left.
+apply included_union_right_step.
+apply included_union_right.
+split. 2: split.
+apply included_union_left_step.
+apply included_union_left.
+apply included_union_left_step.
+apply included_union_right.
+apply included_union_right.
+Qed.
+
+Proposition partition_heap_update (h h1 h2: heap) (v w: Z):
+  Partition h h1 h2 -> ~dom h2 v ->
+  Partition (heap_update h v w) (heap_update h1 v w) h2.
+unfold Partition.
+intros.
+destruct H as (((H & H1) & H2) & H3).
+repeat rewrite heap_update_dom.
+split. split. split.
+- rewrite included_union_split.
+  split.
+  rewrite (@union_comm _ (dom h1)).
+  rewrite union_assoc.
+  apply included_union_right_step.
+  assumption.
+  apply included_union_left_step.
+  apply included_union_right.
+- apply disjoint_union_split.
+  split. assumption.
+  apply disjoint_singleton. assumption.
+- intros. unfold heap_update.
+  destruct (Z.eq_dec v n). reflexivity.
+  apply H2. destruct H4. apply H4.
+  exfalso. apply n0. inversion H4. reflexivity.
+- intros. unfold heap_update.
+  destruct (Z.eq_dec v n).
+  exfalso. apply H0. rewrite e. assumption.
+  apply H3. assumption.
+Qed.
+
+Proposition included_singleton_union {T: Type} {A B: T -> Prop} {x: T}:
+  Included T (Singleton T x) (Union T A B) -> A x \/ B x.
+unfold Included; unfold Ensembles.In. intro.
+specialize (H x).
+assert (Singleton T x x) by constructor.
+specialize (H H0). clear H0.
+destruct H. left. assumption. right. assumption.
+Qed.
+
+Proposition heap_update_partition_split (h h1 h2: heap) (v w: Z):
+  Partition (heap_update h v w) h1 h2 ->
+  (exists h1', Partition h h1' h2 /\ h1 = heap_update h1' v w) \/
+  (exists h2', Partition h h1 h2' /\ h2 = heap_update h2' v w).
+intro.
+unfold Partition in H.
+destruct H. destruct H. destruct H.
+rewrite heap_update_dom in H.
+rewrite included_union_split in H.
+destruct H.
+apply included_singleton_union in H3.
+destruct H3.
+- left.
+  exists (fun x => if Z.eq_dec x v then h x else h1 x).
+  split. split. split. split.
+  + intro. unfold Ensembles.In. intro.
+    specialize (H x H4). destruct H.
+    left. unfold Ensembles.In; unfold dom.
+    destruct (Z.eq_dec x v).
+    apply H4.
+    specialize (H1 x H). rewrite <- H1.
+    unfold heap_update.
+    destruct (Z.eq_dec v x).
+    exfalso. apply n. symmetry. assumption.
+    apply H4.
+    right. apply H.
+  + constructor. intro. unfold Ensembles.In. intro.
+    destruct H4. unfold Ensembles.In in *.
+    unfold dom in H4. destruct (Z.eq_dec x v).
+    fold (dom h x) in H4.
+    rewrite <- e in H3.
+    destruct H2.
+    specialize (H2 x). apply H2.
+    constructor; assumption.
+    fold (dom h1 x) in H4.
+    destruct H2.
+    specialize (H2 x). apply H2.
+    constructor; assumption.
+  + intro. unfold dom.
+    destruct (Z.eq_dec n v). intro. reflexivity.
+    intro. specialize (H1 n H4).
+    rewrite <- H1.
+    unfold heap_update.
+    destruct (Z.eq_dec v n). exfalso.
+    apply n0. rewrite e. reflexivity.
+    reflexivity.
+  + intros.
+    specialize (H0 n H4).
+    rewrite <- H0. unfold heap_update.
+    destruct (Z.eq_dec v n).
+    exfalso. destruct H2.
+    specialize (H2 v). apply H2.
+    constructor. apply H3. rewrite e. assumption.
+    reflexivity.
+  + apply functional_extensionality. intro.
+    unfold heap_update. destruct (Z.eq_dec v x).
+    specialize (H1 v H3). rewrite <- e. rewrite <- H1.
+    apply heap_update_lookup.
+    destruct (Z.eq_dec x v).
+    exfalso. apply n. rewrite e. reflexivity.
+    reflexivity.
+- right.
+  exists (fun x => if Z.eq_dec x v then h x else h2 x).
+  split. split. split. split.
+  + intro. unfold Ensembles.In. intro.
+    specialize (H x H4). destruct H.
+    left. apply H.
+    right. unfold Ensembles.In; unfold dom.
+    destruct (Z.eq_dec x v).
+    apply H4.
+    specialize (H0 x H). rewrite <- H0.
+    unfold heap_update.
+    destruct (Z.eq_dec v x).
+    exfalso. apply n. symmetry. assumption.
+    apply H4.
+  + constructor. intro. unfold Ensembles.In. intro.
+    destruct H4. unfold Ensembles.In in *.
+    unfold dom in H5. destruct (Z.eq_dec x v).
+    fold (dom h x) in H5.
+    rewrite <- e in H3.
+    destruct H2.
+    specialize (H2 x). apply H2.
+    constructor; assumption.
+    fold (dom h2 x) in H5.
+    destruct H2.
+    specialize (H2 x). apply H2.
+    constructor; assumption.
+  + intros.
+    specialize (H1 n H4).
+    rewrite <- H1. unfold heap_update.
+    destruct (Z.eq_dec v n).
+    exfalso. destruct H2.
+    specialize (H2 v). apply H2.
+    constructor. rewrite e. assumption.
+    apply H3. reflexivity.
+  + intro. unfold dom.
+    destruct (Z.eq_dec n v). intro. reflexivity.
+    intro. specialize (H0 n H4).
+    rewrite <- H0.
+    unfold heap_update.
+    destruct (Z.eq_dec v n). exfalso.
+    apply n0. rewrite e. reflexivity.
+    reflexivity.
+  + apply functional_extensionality. intro.
+    unfold heap_update. destruct (Z.eq_dec v x).
+    specialize (H0 v H3). rewrite <- e. rewrite <- H0.
+    apply heap_update_lookup.
+    destruct (Z.eq_dec x v).
+    exfalso. apply n. rewrite e. reflexivity.
+    reflexivity.
+Qed.
+
+Definition eq_restr (s t: store) (z: list V): Prop :=
+  forall (x: V), In x z -> s x = t x.
+
+Proposition eq_restr_split (s t: store) (xs ys: list V):
+  eq_restr s t (xs ++ ys) -> eq_restr s t xs /\ eq_restr s t ys.
+unfold eq_restr; intro; split; intros;
+apply H; apply in_or_app; auto.
+Qed.
+
+(* Expressions are shallow, but finitely based *)
+Record expr: Set := mkexpr {
+  eval: store -> Z;
+  evar: list V;
+  econd: forall (s t: store), eq_restr s t evar -> eval s = eval t
+}.
+Proposition const_expr_cond (v: Z) (s t : store):
+  eq_restr s t nil -> v = v.
+intros. reflexivity.
+Qed.
+Definition const_expr (v: Z): expr :=
+  mkexpr (fun s => v) nil (const_expr_cond v).
+Coercion const_expr: Z >-> expr.
+Proposition var_expr_cond (x: V) (s t : store):
+  eq_restr s t (x :: nil) -> s x = t x.
+intro. unfold eq_restr in H.
+specialize H with x. apply H.
+left. reflexivity.
+Qed.
+Definition var_expr (x: V): expr :=
+  mkexpr (fun s => s x) (x :: nil) (var_expr_cond x).
+Coercion var_expr: V >-> expr.
+
+Proposition expr_eq (e1 e2: expr):
+  (eval e1 = eval e2) -> (evar e1 = evar e2) -> e1 = e2.
+intros. destruct e1. destruct e2.
+simpl in *. revert econd0. rewrite H. rewrite H0.
+intro. pose proof (proof_irrelevance _ econd0 econd1).
+rewrite H1. reflexivity.
+Qed.
+
+(* Guards are shallow, but finitely based *)
+Record guard: Set := mkguard {
+  gval: store -> bool;
+  gvar: list V;
+  gcond: forall (s t: store), eq_restr s t gvar -> gval s = gval t
+}.
+Proposition const_guard_cond (v: bool) (s t : store):
+  eq_restr s t nil -> v = v.
+intros. reflexivity.
+Qed.
+Definition const_guard (v: bool): guard :=
+  mkguard (fun s => v) nil (const_guard_cond v).
+Coercion const_guard: bool >-> guard.
+Proposition equals_cond (e1 e2: expr) (s t : store):
+  eq_restr s t (evar e1 ++ evar e2) ->
+  (if Z.eq_dec (eval e1 s) (eval e2 s) then true else false) =
+  (if Z.eq_dec (eval e1 t) (eval e2 t) then true else false).
+intro H.
+apply eq_restr_split in H; destruct H.
+pose proof (econd e1 s t); rewrite H1.
+pose proof (econd e2 s t); rewrite H2.
+all: auto.
+Qed.
+Definition equals (e1 e2: expr): guard :=
+  mkguard (fun s => if Z.eq_dec (eval e1 s) (eval e2 s) then
+    true else false) (evar e1 ++ evar e2) (equals_cond e1 e2).
+
+Proposition guard_eq (g1 g2: guard):
+  (gval g1 = gval g2) -> (gvar g1 = gvar g2) -> g1 = g2.
+intros. destruct g1. destruct g2.
+simpl in *. revert gcond0. rewrite H. rewrite H0.
+intro. pose proof (proof_irrelevance _ gcond0 gcond1).
+rewrite H1. reflexivity.
+Qed.
+
+Proposition store_update_swap (s: store) (e: expr) (x y: V) (v: Z):
+  x <> y ->
+  (store_update (store_update s x (eval e s)) y v) =
+  (store_update (store_update s y v) x (eval e s)).
+intros G; apply functional_extensionality; intro z.
+unfold store_update.
+destruct (Nat.eq_dec y z); destruct (Nat.eq_dec x z); try reflexivity.
+exfalso. apply G. rewrite e0; rewrite e1. reflexivity.
+Qed.
+
+Variant assignment :=
+| basic: V -> expr -> assignment
+| lookup: V -> expr -> assignment
+| mutation: V -> expr -> assignment
+| new: V -> expr -> assignment.
+
+Inductive program :=
+| assign: assignment -> program
+| comp: program -> program -> program.
+Coercion assign: assignment >-> program.
+
+Inductive bigstep: program -> heap * store ->
+    option (heap * store) -> Prop :=
+| step_basic (x: V) (e: expr) (h: heap) (s: store):
+    bigstep (basic x e) (h, s) (Some (h, store_update s x (eval e s)))
+| step_lookup (x: V) (e: expr) (h: heap) (s: store) (v: Z):
+    h (eval e s) = Some v ->
+    bigstep (lookup x e) (h, s) (Some (h, store_update s x v))
+| step_lookup_fail (x: V) (e: expr) (h: heap) (s: store) (v: Z):
+    h (eval e s) = None ->
+    bigstep (lookup x e) (h, s) None
+| step_mutation (x: V) (e: expr) (h: heap) (s: store):
+    dom h (s x) ->
+    bigstep (mutation x e) (h, s) (Some (heap_update h (s x) (eval e s), s))
+| step_mutation_fail (x: V) (e: expr) (h: heap) (s: store):
+    ~dom h (s x) ->
+    bigstep (mutation x e) (h, s) None
+| step_new (x: V) (e: expr) (h: heap) (s: store) (n: Z):
+    ~(dom h n) ->
+    bigstep (new x e) (h, s)
+      (Some (heap_update h n (eval e s), store_update s x n))
+| step_comp (S1 S2: program) (h h' h'': heap) (s s' s'': store):
+    bigstep S1 (h, s) (Some (h', s')) ->
+    bigstep S2 (h', s') (Some (h'', s'')) ->
+    bigstep (comp S1 S2) (h, s) (Some (h'', s''))
+| step_comp_fail1 (S1 S2: program) (h: heap) (s: store):
+    bigstep S1 (h, s) None ->
+    bigstep (comp S1 S2) (h, s) None
+| step_comp_fail2 (S1 S2: program) (h h': heap) (s s': store):
+    bigstep S1 (h, s) (Some (h', s')) ->
+    bigstep S2 (h', s') None ->
+    bigstep (comp S1 S2) (h, s) None.
+
+(* Assertions are deep, since this is one of the main subjects. *)
+Inductive assert :=
+| test: guard -> assert
+| emp: assert
+| pointsto: expr -> expr -> assert
+| land: assert -> assert -> assert
+| lor: assert -> assert -> assert
+| limp: assert -> assert -> assert
+| lexists: V -> assert -> assert
+| lforall: V -> assert -> assert
+| sand: assert -> assert -> assert
+| simp: assert -> assert -> assert.
+Coercion test: guard >-> assert.
+
+Definition lnot (p: assert): assert := (limp p false).
+Definition lequiv (p q: assert): assert := land (limp p q) (limp q p).
+
+Fixpoint satisfy (h: heap) (s: store) (p: assert): Prop :=
+  match p with
+  | test g => gval g s = true
+  | emp => dom h = Empty_set Z
+  | pointsto e e' => dom h = Singleton Z (eval e s) /\
+      h (eval e s) = eval e' s
+  | land p q => satisfy h s p /\ satisfy h s q
+  | lor p q => satisfy h s p \/ satisfy h s q
+  | limp p q => satisfy h s p -> satisfy h s q
+  | lexists x p => exists v, satisfy h (store_update s x v) p
+  | lforall x p => forall v, satisfy h (store_update s x v) p
+  | sand p q => exists h1 h2, Partition h h1 h2 /\
+      satisfy h1 s p /\ satisfy h2 s q
+  | simp p q => forall h'' h', Partition h'' h h' ->
+      satisfy h' s p -> satisfy h'' s q
+  end.
+
+Proposition satisfy_land (h: heap) (s: store) (p q: assert):
+  satisfy h s (land p q) <-> satisfy h s p /\ satisfy h s q.
+simpl; split; intro; auto.
+Qed.
+
+Proposition satisfy_lor (h: heap) (s: store) (p q: assert):
+  satisfy h s (lor p q) <-> satisfy h s p \/ satisfy h s q.
+simpl; split; intro; auto.
+Qed.
+
+Proposition satisfy_limp (h: heap) (s: store) (p q: assert):
+  satisfy h s (limp p q) <-> (satisfy h s p -> satisfy h s q).
+simpl; split; intro; auto.
+Qed.
+
+Proposition satisfy_lexists (h: heap) (s: store) (x: V) (p: assert):
+  satisfy h s (lexists x p) <-> exists v, satisfy h (store_update s x v) p.
+simpl. tauto.
+Qed.
+
+Proposition satisfy_lforall (h: heap) (s: store) (x: V) (p: assert):
+  satisfy h s (lforall x p) <-> forall v, satisfy h (store_update s x v) p.
+simpl. tauto.
+Qed.
+
+Proposition satisfy_equals (h: heap) (s: store) (e0 e1: expr):
+  satisfy h s (equals e0 e1) <-> eval e0 s = eval e1 s.
+simpl. destruct (Z.eq_dec (eval e0 s) (eval e1 s)).
+rewrite e. tauto. split. intro. inversion H.
+intro. exfalso. apply n. assumption.
+Qed.
+
+Proposition satisfy_lnot (h: heap) (s: store) (p: assert):
+  satisfy h s (lnot p) <-> ~satisfy h s p.
+simpl; split; intro; auto. intro.
+specialize (H H0). inversion H.
+Qed.
+
+Proposition satisfy_lequiv (h: heap) (s: store) (p q: assert):
+  satisfy h s (lequiv p q) <-> (satisfy h s p <-> satisfy h s q).
+simpl; split; intro; tauto.
+Qed.
+
+Proposition satisfy_sand (h: heap) (s: store) (p q: assert):
+  satisfy h s (sand p q) <-> exists h1 h2, Partition h h1 h2 /\
+    satisfy h1 s p /\ satisfy h2 s q.
+simpl; split; intro; destruct H as (h1 & h2 & H & H1 & H2).
+all: exists h1; exists h2; tauto.
+Qed.
+
+Proposition satisfy_simp (h: heap) (s: store) (p q: assert):
+  satisfy h s (simp p q) <-> forall h'' h', Partition h'' h h' ->
+      satisfy h' s p -> satisfy h'' s q.
+simpl; split; intros; eapply H; try apply H0; assumption.
+Qed.
+
+Definition validity (p: assert): Prop := forall h s, satisfy h s p.
+
+Definition pointstodash (e: expr): assert :=
+  let y := (fresh (evar e)) in
+    lexists y (pointsto e y).
+Definition hasval (e e': expr): assert :=
+  sand (pointsto e e') true.
+Definition hasvaldash (e: expr): assert :=
+  sand (pointstodash e) true.
+
+Proposition satisfy_hasvaldash (h: heap) (s: store) (x: V):
+  satisfy h s (hasvaldash x) <-> dom h (s x).
+split; intro.
+- simpl in H.
+  destruct H as (h1 & h2 & H & (v & H0 & H1) & H2).
+  rewrite store_update_lookup in H1.
+  rewrite store_update_lookup_dom in H0.
+  rewrite store_update_lookup_dom in H1.
+  2,3: left; reflexivity.
+  unfold Partition in H.
+  destruct H as ((H & HH) & _).
+  rewrite <- HH in H1.
+  unfold dom. rewrite H1. intro. inversion H3.
+  rewrite H0. constructor.
+- simpl.
+  exists (fun y => if Z.eq_dec y (s x) then h (s x) else None).
+  exists (fun y => if Z.eq_dec y (s x) then None else h y).
+  split. unfold Partition; repeat split.
+  + unfold Included. unfold Ensembles.In. intros.
+    destruct (Z.eq_dec x0 (s x)).
+    left. unfold Ensembles.In. unfold dom.
+      intro. destruct (Z.eq_dec x0 (s x)).
+      unfold dom in H0. rewrite <- e in H1.
+      apply H0. assumption.
+      apply n. assumption.
+    right. unfold Ensembles.In. unfold dom.
+      intro. destruct (Z.eq_dec x0 (s x)).
+      apply n. assumption.
+      unfold dom in H0.
+      apply H0. assumption.
+  + intro. unfold Ensembles.In.
+    intro. destruct H0. unfold Ensembles.In in *.
+    unfold dom in *. destruct (Z.eq_dec x0 (s x)).
+    apply H1. reflexivity. apply H0. reflexivity.
+  + intros. unfold dom in H0.
+    destruct (Z.eq_dec n (s x)).
+    rewrite e. reflexivity. exfalso. apply H0. reflexivity.
+  + intros. unfold dom in H0.
+    destruct (Z.eq_dec n (s x)).
+    exfalso. apply H0. reflexivity. reflexivity.
+  + split. 2: reflexivity.
+    remember (h (s x)).
+    destruct o.
+    exists z.
+    rewrite store_update_lookup_dom.
+    rewrite store_update_lookup.
+    split.
+    apply Extensionality_Ensembles.
+    unfold Same_set; split; unfold Included; unfold Ensembles.In.
+    intros. unfold dom in H0.
+    destruct (Z.eq_dec x0 (s x)).
+    rewrite e. constructor.
+    exfalso. apply H0. reflexivity.
+    intros. inversion H0.
+    unfold dom. destruct (Z.eq_dec (s x) (s x)).
+    intro. inversion H2. exfalso. apply n. reflexivity.
+    destruct (Z.eq_dec (s x) (s x)).
+    reflexivity. exfalso. apply n. reflexivity.
+    left. reflexivity.
+    exfalso. unfold dom in H. rewrite Heqo in H.
+    apply H. reflexivity.
+Qed.
+
+Proposition not_Empty_set_exists {Z: Type} (Y: Ensemble Z):
+  Y <> Empty_set Z -> exists (y : Z), Y y.
+intro. apply NNPP. intro.
+pose proof (not_ex_all_not _ _ H0).
+apply H.
+apply Extensionality_Ensembles.
+unfold Same_set; split; unfold Included; unfold Ensembles.In; intros.
+exfalso. eapply H1. apply H2. inversion H2.
+Qed.
+
+Proposition satisfy_lor_emp_pointstodash (h: heap) (s: store) (x: V):
+  satisfy h s (lor emp (pointstodash x)) <->
+  Included Z (dom h) (Singleton Z (s x)).
+assert (forall z, (store_update s (fresh (x :: nil)) z x) = s x) as G.
+{ intro. unfold store_update.
+  destruct (Nat.eq_dec (fresh (x :: nil)) x).
+  pose proof (fresh_prop (x :: nil) x).
+  assert (In x (x :: nil)).
+  constructor. reflexivity.
+  specialize (H H0).
+  rewrite e in H. apply Nat.lt_irrefl in H. inversion H.
+  reflexivity. }
+simpl; split; intro.
+- intro. intro.
+  destruct H. rewrite H in H0. inversion H0.
+  destruct H as (z & H & H1).
+  rewrite G in H.
+  rewrite H in H0. assumption.
+- assert (dom h = Empty_set Z \/ dom h <> Empty_set Z) by
+    apply classic.
+  destruct H0. left. tauto.
+  right. remember (h (s x)).
+  destruct o. exists z. rewrite G.
+  split. { apply Extensionality_Ensembles.
+    unfold Same_set. split. assumption.
+    unfold Included; unfold Ensembles.In; intros.
+    unfold dom. inversion H1.
+    rewrite <- Heqo. intro. inversion H3. }
+  { unfold store_update.
+    destruct (Nat.eq_dec (fresh (x :: nil)) (fresh (x :: nil))).
+    rewrite <- Heqo. reflexivity. exfalso. apply n. reflexivity. }
+  exfalso. pose proof (not_Empty_set_exists (dom h) H0).
+  destruct H1. unfold Included in H; unfold Ensembles.In in H.
+  pose proof (H _ H1). inversion H2. rewrite <- H3 in H1.
+  unfold dom in H1. apply H1. symmetry. apply Heqo.
+Qed.
+
+Proposition emp_to_forall_pointstodash:
+  validity (limp emp (lforall dummy (lnot (pointstodash dummy)))).
+intro h; intro s.
+simpl. intros. destruct H0. destruct H0.
+remember (store_update s dummy v) as s'.
+remember (store_update s' (fresh (dummy :: nil)) x) as s''.
+rewrite H0 in H.
+assert (Included Z (Singleton Z (s'' dummy)) (Empty_set Z)) by
+  (rewrite H; intro; auto).
+unfold Included in H2.
+specialize H2 with (s'' dummy).
+unfold Ensembles.In in H2.
+assert (Empty_set Z (s'' dummy)) by
+  (apply H2; constructor).
+inversion H3.
+Qed.
+
+Example emp_iff_forall_not_hasdash:
+  validity (lequiv emp (lforall dummy (lnot (hasvaldash dummy)))).
+intro h; intro s.
+split; simpl.
+- intros.
+  destruct H0; destruct H0; destruct H0.
+  pose proof (partition_union_in_dom h x x0 H0).
+  rewrite H in H2.
+  destruct H1; destruct H1; destruct H1.
+  remember (store_update s dummy v) as s'.
+  remember (store_update s' (fresh (dummy :: nil)) x1) as s''.
+  rewrite H1 in H2.
+  unfold Included in H2; unfold Ensembles.In in H2.
+  specialize H2 with (s'' dummy).
+  assert (Empty_set Z (s'' dummy)).
+    apply H2. left. unfold Ensembles.In. constructor.
+  inversion H5.
+- intros.
+  apply Extensionality_Ensembles; split.
+  intro; unfold Ensembles.In; intros.
+  exfalso. specialize H with x. cut (false = true).
+  intro; inversion H1.
+  apply H; clear H.
+  exists (fun y => if Z.eq_dec x y then h x else None).
+  exists (fun y => if Z.eq_dec x y then None else h y).
+  split.
+  + unfold Partition; repeat split; simpl; intro; unfold Ensembles.In.
+    * intro. destruct (Z.eq_dec x x0).
+      1: left. 2: right.
+      1,2: unfold Ensembles.In; unfold dom;
+        destruct (Z.eq_dec x x0); auto.
+    * intro. destruct H; unfold Ensembles.In in *; unfold dom in *.
+      destruct (Z.eq_dec x x0). apply H1; reflexivity.
+      apply H; reflexivity.
+    * unfold dom; intros.
+      destruct (Z.eq_dec x n).
+      rewrite e; reflexivity.
+      exfalso; apply H; reflexivity.
+    * unfold dom; intros.
+      destruct (Z.eq_dec x n).
+      exfalso; apply H; reflexivity.
+      reflexivity.
+  + split; auto. unfold dom in *. destruct (h x).
+    2: exfalso; apply H0; reflexivity.
+    exists z; split.
+    * apply Extensionality_Ensembles; split.
+      all: unfold Included; unfold Ensembles.In; intros.
+      all: destruct (Z.eq_dec x x0).
+      unfold store_update.
+      destruct (Nat.eq_dec (fresh (dummy :: nil)) dummy).
+      exfalso. rewrite fresh_dummy in e0. inversion e0.
+      destruct (Nat.eq_dec dummy dummy).
+      rewrite e. constructor.
+      exfalso; apply n0; reflexivity.
+      exfalso; apply H; reflexivity.
+      intro. inversion H1.
+      inversion H.
+      unfold store_update in H1.
+      rewrite fresh_dummy in H1.
+      destruct (Nat.eq_dec dummy' dummy). inversion e.
+      destruct (Nat.eq_dec dummy dummy). exfalso. apply n; assumption.
+      exfalso; apply n1; reflexivity.
+    * clear H0. unfold store_update.
+      rewrite fresh_dummy.
+      destruct (Nat.eq_dec dummy' dummy');
+      try (exfalso; apply n; reflexivity); clear e.
+      destruct (Nat.eq_dec dummy' dummy);
+      try inversion e; clear n.
+      destruct (Nat.eq_dec dummy dummy).
+      destruct (Z.eq_dec x x). reflexivity.
+      exfalso; apply n; reflexivity.
+      exfalso; apply n; reflexivity.
+  + intro. unfold Ensembles.In. intro. inversion H0.
+Qed.
+
+Proposition sand_comm (p q: assert):
+  validity (lequiv (sand p q) (sand q p)).
+intro. intro.
+unfold lequiv.
+rewrite satisfy_land.
+rewrite satisfy_limp.
+rewrite satisfy_limp.
+split; intro; simpl in *;
+destruct H as (h1 & h2 & H & H0 & H1).
+all: exists h2; exists h1; split.
+apply partition_comm; assumption.
+tauto.
+apply partition_comm; assumption.
+tauto.
+Qed.
+
+Definition strong_partial_correct (p: assert) (S: program) (q: assert) :=
+  forall h s, satisfy h s p ->
+    ~bigstep S (h, s) None /\
+    forall h' s', bigstep S (h, s) (Some (h', s')) -> satisfy h' s' q.
+
+Example out_of_memory (x: V) (e: expr):
+  strong_partial_correct (lforall x (hasvaldash x)) (new x e) false.
+unfold strong_partial_correct.
+intros.
+split.
+intro.
+inversion H0.
+intros.
+inversion H0.
+rewrite satisfy_lforall in H.
+specialize (H n).
+rewrite satisfy_hasvaldash in H.
+rewrite store_update_lookup in H.
+exfalso. apply H2. assumption.
+Qed.
+
+(* ===========================
+ *
+ * Section 3: On substitutions
+ *
+ * =========================== *)
+
+Proposition In_remove (T: Type)
+    (eq_dec: forall (x y: T), {x = y} + {x <> y})
+    (x y: T) (xs: list T):
+  In x xs -> y <> x -> In x (remove eq_dec y xs).
+induction xs; intros; inversion H;
+simpl; destruct (eq_dec y a).
+exfalso. apply H0. rewrite <- H1. auto.
+rewrite H1. left. reflexivity.
+apply IHxs; assumption.
+right. apply IHxs; assumption.
+Qed.
+
+Proposition In_remove_elim (T: Type)
+    (eq_dec: forall (x y: T), {x = y} + {x <> y})
+    (x y: T) (xs: list T):
+  y <> x -> In x (remove eq_dec y xs) -> In x xs.
+induction xs; intros; simpl in H0.
+inversion H0.
+specialize (IHxs H).
+destruct (eq_dec y a).
+specialize (IHxs H0). right. assumption.
+inversion H0. rewrite H1. left. auto.
+specialize (IHxs H1). right. assumption.
+Qed.
+
+Proposition esub_cond (e: expr) (x: V) (e': expr) (s t : store):
+  eq_restr s t (remove Nat.eq_dec x (evar e) ++ evar e') ->
+  eval e (store_update s x (eval e' s)) =
+    eval e (store_update t x (eval e' t)).
+intro.
+assert (eval e' s = eval e' t).
+apply (econd e').
+intro; intro; apply H.
+apply in_or_app; right; assumption.
+rewrite <- H0.
+unfold store_update.
+apply (econd e).
+unfold eq_restr.
+intro; intro.
+destruct (Nat.eq_dec x x0).
+reflexivity.
+apply H; apply in_or_app; left.
+apply In_remove; assumption.
+Qed.
+Definition esub (e: expr) (x: V) (e': expr): expr :=
+  mkexpr (fun s => eval e (store_update s x (eval e' s)))
+    (remove Nat.eq_dec x (evar e) ++ evar e') (esub_cond e x e').
+
+Proposition esub_simpl (e: expr) (x: V) (e': expr):
+  ~In x (evar e) -> forall s, eval (esub e x e') s = eval e s.
+intros. simpl.
+apply econd. intro. intro.
+unfold store_update.
+destruct (Nat.eq_dec x x0).
+exfalso. apply H. rewrite e0. assumption.
+reflexivity.
+Qed.
+
+Proposition gsub_cond (g: guard) (x: V) (e': expr) (s t: store):
+  eq_restr s t (remove Nat.eq_dec x (gvar g) ++ evar e') ->
+  gval g (store_update s x (eval e' s)) =
+  gval g (store_update t x (eval e' t)).
+intro.
+assert (eval e' s = eval e' t).
+apply (econd e').
+intro; intro; apply H.
+apply in_or_app; right; assumption.
+rewrite <- H0.
+unfold store_update.
+apply (gcond g).
+unfold eq_restr.
+intro; intro.
+destruct (Nat.eq_dec x x0).
+reflexivity.
+apply H; apply in_or_app; left.
+apply In_remove; assumption.
+Qed.
+Definition gsub (g: guard) (x: V) (e: expr): guard :=
+  mkguard (fun s => gval g (store_update s x (eval e s)))
+    (remove Nat.eq_dec x (gvar g) ++ evar e) (gsub_cond g x e).
+
+Proposition gsub_refl_equiv (g: guard) (x: V):
+  validity (lequiv g (gsub g x x)).
+intro. intro.
+rewrite satisfy_lequiv.
+simpl.
+rewrite store_update_nop.
+reflexivity.
+Qed.
+
+Fixpoint abound (p: assert): list V :=
+  match p with
+  | test g => nil
+  | emp => nil
+  | pointsto e e' => nil
+  | land p q => abound p ++ abound q
+  | lor p q => abound p ++ abound q
+  | limp p q => abound p ++ abound q
+  | lexists x p => x :: abound p
+  | lforall x p => x :: abound p
+  | sand p q => abound p ++ abound q
+  | simp p q => abound p ++ abound q
+  end.
+
+Fixpoint avar (p: assert): list V :=
+  match p with
+  | test g => gvar g
+  | emp => nil
+  | pointsto e e' => evar e ++ evar e'
+  | land p q => avar p ++ avar q
+  | lor p q => avar p ++ avar q
+  | limp p q => avar p ++ avar q
+  | lexists x p => remove Nat.eq_dec x (avar p)
+  | lforall x p => remove Nat.eq_dec x (avar p)
+  | sand p q => avar p ++ avar q
+  | simp p q => avar p ++ avar q
+  end.
+
+Proposition acond (h: heap) (p: assert):
+  forall (s t: store), eq_restr s t (avar p) ->
+    (satisfy h s p <-> satisfy h t p).
+generalize dependent h; induction p; intros; try tauto; simpl in *.
+erewrite (gcond g); [|apply H]; apply iff_refl.
+1,2,3,4: apply eq_restr_split in H; destruct H as (H0 & H1).
+2,3,4: specialize IHp1 with h s t; specialize IHp2 with h s t.
+2,3,4: tauto.
+pose proof (econd e s t) as G; rewrite G; try tauto;
+pose proof (econd e0 s t) as I; rewrite I; tauto.
+- split; intro; destruct H0; exists x.
+  1: apply <- IHp.
+  3: apply -> IHp.
+  1,3: apply H0.
+  1,2: intro; intro; unfold store_update.
+  1,2: destruct (Nat.eq_dec v x0); try reflexivity.
+  1,2: symmetry; apply H; apply In_remove; assumption.
+- split; intros; specialize H0 with v0.
+  1: apply <- IHp.
+  3: apply -> IHp.
+  1,3: apply H0.
+  1,2: intro; intro; unfold store_update.
+  1,2: destruct (Nat.eq_dec v x); try reflexivity.
+  1,2: symmetry; apply H; apply In_remove; assumption.
+- split; intro; destruct H0 as (h1 & h2 & (H0 & H1 & H2)).
+  1,2: exists h1; exists h2; split.
+  1,3: assumption.
+  1,2: apply eq_restr_split in H; destruct H as (H & HH).
+  1,2: split.
+  1: apply -> IHp1. 4: apply <- IHp1.
+  1,4: apply H1.
+  1,3: assumption.
+  1: apply -> IHp2. 3: apply <- IHp2.
+  1,3: apply H2.
+  1,2: assumption.
+- apply eq_restr_split in H; destruct H as (H & HH).
+  split; intros.
+  1,2: specialize H0 with h'' h'.
+  1,2: specialize (H0 H1).
+  apply <- IHp1 in H2.
+  specialize (H0 H2).
+  apply -> IHp2 in H0.
+  apply H0.
+  1,2: assumption.
+  apply -> IHp1 in H2.
+  specialize (H0 H2).
+  apply <- IHp2 in H0.
+  apply H0.
+  1,2: assumption.
+Qed.
+
+Definition aoccur (p: assert): list V := abound p ++ avar p.
+
+Proposition asub_land_proof1 {e: expr} {p q: assert}:
+  (exists x, In x (evar e) /\ In x (abound p)) ->
+  exists x, In x (evar e) /\ In x (abound (land p q)).
+intro H; destruct H; destruct H.
+exists x; split; auto; simpl.
+apply in_or_app; left; auto.
+Qed.
+Proposition asub_land_proof2 {e: expr} {p q: assert}:
+  (exists x, In x (evar e) /\ In x (abound q)) ->
+  exists x, In x (evar e) /\ In x (abound (land p q)).
+intro H; destruct H; destruct H.
+exists x; split; auto; simpl.
+apply in_or_app; right; auto.
+Qed.
+Proposition asub_lor_proof1 {e: expr} {p q: assert}:
+  (exists x, In x (evar e) /\ In x (abound p)) ->
+  exists x, In x (evar e) /\ In x (abound (lor p q)).
+intro H; destruct H; destruct H.
+exists x; split; auto; simpl.
+apply in_or_app; left; auto.
+Qed.
+Proposition asub_lor_proof2 {e: expr} {p q: assert}:
+  (exists x, In x (evar e) /\ In x (abound q)) ->
+  exists x, In x (evar e) /\ In x (abound (lor p q)).
+intro H; destruct H; destruct H.
+exists x; split; auto; simpl.
+apply in_or_app; right; auto.
+Qed.
+Proposition asub_limp_proof1 {e: expr} {p q: assert}:
+  (exists x, In x (evar e) /\ In x (abound p)) ->
+  exists x, In x (evar e) /\ In x (abound (limp p q)).
+intro H; destruct H; destruct H.
+exists x; split; auto; simpl.
+apply in_or_app; left; auto.
+Qed.
+Proposition asub_limp_proof2 {e: expr} {p q: assert}:
+  (exists x, In x (evar e) /\ In x (abound q)) ->
+  exists x, In x (evar e) /\ In x (abound (limp p q)).
+intro H; destruct H; destruct H.
+exists x; split; auto; simpl.
+apply in_or_app; right; auto.
+Qed.
+Proposition asub_lexists_proof1 {e : expr} {x : V} {p : assert}:
+  In x (evar e) ->
+  (exists y, In y (evar e) /\ In y (abound (lexists x p))).
+intro H.
+exists x; split; auto; simpl.
+left; auto.
+Qed.
+Proposition asub_lexists_proof2 {e: expr} {x: V} {p: assert}:
+  (exists x, In x (evar e) /\ In x (abound p)) ->
+  exists y, In y (evar e) /\ In y (abound (lexists x p)).
+intro H; destruct H; destruct H.
+exists x0; split; auto; simpl.
+right; auto.
+Qed.
+Proposition asub_lforall_proof1 {e : expr} {x : V} {p : assert}:
+  In x (evar e) ->
+  (exists y, In y (evar e) /\ In y (abound (lforall x p))).
+intro H.
+exists x; split; auto; simpl.
+left; auto.
+Qed.
+Proposition asub_lforall_proof2 {e: expr} {x: V} {p: assert}:
+  (exists x, In x (evar e) /\ In x (abound p)) ->
+  exists y, In y (evar e) /\ In y (abound (lforall x p)).
+intro H; destruct H; destruct H.
+exists x0; split; auto; simpl.
+right; auto.
+Qed.
+Proposition asub_sand_proof1 {e: expr} {p q: assert}:
+  (exists x, In x (evar e) /\ In x (abound p)) ->
+  exists x, In x (evar e) /\ In x (abound (sand p q)).
+intro H; destruct H; destruct H.
+exists x; split; auto; simpl.
+apply in_or_app; left; auto.
+Qed.
+Proposition asub_sand_proof2 {e: expr} {p q: assert}:
+  (exists x, In x (evar e) /\ In x (abound q)) ->
+  exists x, In x (evar e) /\ In x (abound (sand p q)).
+intro H; destruct H; destruct H.
+exists x; split; auto; simpl.
+apply in_or_app; right; auto.
+Qed.
+Proposition asub_simp_proof1 {e: expr} {p q: assert}:
+  (exists x, In x (evar e) /\ In x (abound p)) ->
+  exists x, In x (evar e) /\ In x (abound (simp p q)).
+intro H; destruct H; destruct H.
+exists x; split; auto; simpl.
+apply in_or_app; left; auto.
+Qed.
+Proposition asub_simp_proof2 {e: expr} {p q: assert}:
+  (exists x, In x (evar e) /\ In x (abound q)) ->
+  exists x, In x (evar e) /\ In x (abound (simp p q)).
+intro H; destruct H; destruct H.
+exists x; split; auto; simpl.
+apply in_or_app; right; auto.
+Qed.
+Fixpoint asub (p: assert) (x: V) (e: expr):
+    assert + {exists x, In x (evar e) /\ In x (abound p)} :=
+  match p with
+  | test g => inleft (test (gsub g x e))
+  | emp => inleft emp
+  | pointsto e1 e2 => inleft (pointsto (esub e1 x e) (esub e2 x e))
+  | land p q => match asub p x e with
+      | inleft ps => match asub q x e with
+          | inleft qs => inleft (land ps qs)
+          | inright H => inright (asub_land_proof2 H)
+          end
+      | inright H => inright (asub_land_proof1 H)
+      end
+  | lor p q => match asub p x e with
+      | inleft ps => match asub q x e with
+          | inleft qs => inleft (lor ps qs)
+          | inright H => inright (asub_lor_proof2 H)
+          end
+      | inright H => inright (asub_lor_proof1 H)
+      end
+  | limp p q => match asub p x e with
+      | inleft ps => match asub q x e with
+          | inleft qs => inleft (limp ps qs)
+          | inright H => inright (asub_limp_proof2 H)
+          end
+      | inright H => inright (asub_limp_proof1 H)
+      end
+  | lexists y p => match Nat.eq_dec x y with
+      | left _ => inleft (lexists y p)
+      | right _ => match in_dec Nat.eq_dec y (evar e) with
+          | left H => inright (asub_lexists_proof1 H)
+          | right _ => match asub p x e with
+              | inleft ps => inleft (lexists y ps)
+              | inright H => inright (asub_lexists_proof2 H)
+              end
+          end
+      end
+  | lforall y p => match Nat.eq_dec x y with
+      | left _ => inleft (lforall y p)
+      | right _ => match in_dec Nat.eq_dec y (evar e) with
+          | left H => inright (asub_lforall_proof1 H)
+          | right _ => match asub p x e with
+              | inleft ps => inleft (lforall y ps)
+              | inright H => inright (asub_lforall_proof2 H)
+              end
+          end
+      end
+  | sand p q => match asub p x e with
+      | inleft ps => match asub q x e with
+          | inleft qs => inleft (sand ps qs)
+          | inright H => inright (asub_sand_proof2 H)
+          end
+      | inright H => inright (asub_sand_proof1 H)
+      end
+  | simp p q => match asub p x e with
+      | inleft ps => match asub q x e with
+          | inleft qs => inleft (simp ps qs)
+          | inright H => inright (asub_simp_proof2 H)
+          end
+      | inright H => inright (asub_simp_proof1 H)
+      end
+  end.
+
+Proposition asub_defined (p: assert) (x: V) (e: expr):
+  (forall x, In x (evar e) -> ~In x (abound p)) ->
+  exists q, asub p x e = inleft q.
+induction p; intros.
+- exists (test (gsub g x e)); reflexivity.
+- exists emp; reflexivity.
+- exists (pointsto (esub e0 x e) (esub e1 x e)); reflexivity.
+- assert (forall x : V, In x (evar e) -> ~ In x (abound p1)) as G0.
+  intros; intro; eapply H; [apply H0 | simpl; apply in_or_app; auto].
+  assert (forall x : V, In x (evar e) -> ~ In x (abound p2)) as G1.
+  intros; intro; eapply H; [apply H0 | simpl; apply in_or_app; auto].
+  pose proof (IHp1 G0); pose proof (IHp2 G1); clear IHp1 IHp2 G0 G1.
+  destruct H0; destruct H1.
+  exists (land x0 x1); simpl. rewrite H1; rewrite H0. reflexivity.
+- assert (forall x : V, In x (evar e) -> ~ In x (abound p1)) as G0.
+  intros; intro; eapply H; [apply H0 | simpl; apply in_or_app; auto].
+  assert (forall x : V, In x (evar e) -> ~ In x (abound p2)) as G1.
+  intros; intro; eapply H; [apply H0 | simpl; apply in_or_app; auto].
+  pose proof (IHp1 G0); pose proof (IHp2 G1); clear IHp1 IHp2 G0 G1.
+  destruct H0; destruct H1.
+  exists (lor x0 x1); simpl. rewrite H1; rewrite H0. reflexivity.
+- assert (forall x : V, In x (evar e) -> ~ In x (abound p1)) as G0.
+  intros; intro; eapply H; [apply H0 | simpl; apply in_or_app; auto].
+  assert (forall x : V, In x (evar e) -> ~ In x (abound p2)) as G1.
+  intros; intro; eapply H; [apply H0 | simpl; apply in_or_app; auto].
+  pose proof (IHp1 G0); pose proof (IHp2 G1); clear IHp1 IHp2 G0 G1.
+  destruct H0; destruct H1.
+  exists (limp x0 x1); simpl. rewrite H1; rewrite H0. reflexivity.
+- assert (forall x : V, In x (evar e) -> ~ In x (abound p)).
+  intros; intro; eapply H; [apply H0 | simpl; auto].
+  pose proof (IHp H0); clear IHp H0.
+  destruct H1.
+  destruct (Nat.eq_dec x v).
+  + exists (lexists v p); simpl.
+    destruct (Nat.eq_dec x v). reflexivity.
+    exfalso. apply n. assumption.
+  + exists (lexists v x0); simpl.
+    destruct (Nat.eq_dec x v).
+    exfalso. apply n. assumption.
+    destruct (in_dec Nat.eq_dec v (evar e)).
+    specialize (H v i). simpl in H.
+    exfalso. apply H. left. reflexivity.
+    rewrite H0. reflexivity.
+- assert (forall x : V, In x (evar e) -> ~ In x (abound p)).
+  intros; intro; eapply H; [apply H0 | simpl; auto].
+  pose proof (IHp H0); clear IHp H0.
+  destruct H1.
+  destruct (Nat.eq_dec x v).
+  + exists (lforall v p); simpl.
+    destruct (Nat.eq_dec x v). reflexivity.
+    exfalso. apply n. assumption.
+  + exists (lforall v x0); simpl.
+    destruct (Nat.eq_dec x v).
+    exfalso. apply n. assumption.
+    destruct (in_dec Nat.eq_dec v (evar e)).
+    specialize (H v i). simpl in H.
+    exfalso. apply H. left. reflexivity.
+    rewrite H0. reflexivity.
+- assert (forall x : V, In x (evar e) -> ~ In x (abound p1)) as G0.
+  intros; intro; eapply H; [apply H0 | simpl; apply in_or_app; auto].
+  assert (forall x : V, In x (evar e) -> ~ In x (abound p2)) as G1.
+  intros; intro; eapply H; [apply H0 | simpl; apply in_or_app; auto].
+  pose proof (IHp1 G0); pose proof (IHp2 G1); clear IHp1 IHp2 G0 G1.
+  destruct H0; destruct H1.
+  exists (sand x0 x1); simpl. rewrite H1; rewrite H0. reflexivity.
+- assert (forall x : V, In x (evar e) -> ~ In x (abound p1)) as G0.
+  intros; intro; eapply H; [apply H0 | simpl; apply in_or_app; auto].
+  assert (forall x : V, In x (evar e) -> ~ In x (abound p2)) as G1.
+  intros; intro; eapply H; [apply H0 | simpl; apply in_or_app; auto].
+  pose proof (IHp1 G0); pose proof (IHp2 G1); clear IHp1 IHp2 G0 G1.
+  destruct H0; destruct H1.
+  exists (simp x0 x1); simpl. rewrite H1; rewrite H0. reflexivity.
+Qed.
+
+Proposition aoccur_land_left {p q: assert} {y: V}:
+  ~In y (aoccur (land p q)) -> ~In y (aoccur p).
+unfold aoccur. intros. intro. apply H. simpl.
+apply in_app_or in H0. destruct H0.
+apply in_or_app. left. apply in_or_app. tauto.
+apply in_or_app. right. apply in_or_app. tauto.
+Qed.
+Proposition aoccur_land_right {p q: assert} {y: V}:
+  ~In y (aoccur (land p q)) -> ~In y (aoccur q).
+unfold aoccur. intros. intro. apply H. simpl.
+apply in_app_or in H0. destruct H0.
+apply in_or_app. left. apply in_or_app. tauto.
+apply in_or_app. right. apply in_or_app. tauto.
+Qed.
+Proposition aoccur_lor_left {p q: assert} {y: V}:
+  ~In y (aoccur (lor p q)) -> ~In y (aoccur p).
+unfold aoccur. intros. intro. apply H. simpl.
+apply in_app_or in H0. destruct H0.
+apply in_or_app. left. apply in_or_app. tauto.
+apply in_or_app. right. apply in_or_app. tauto.
+Qed.
+Proposition aoccur_lor_right {p q: assert} {y: V}:
+  ~In y (aoccur (lor p q)) -> ~In y (aoccur q).
+unfold aoccur. intros. intro. apply H. simpl.
+apply in_app_or in H0. destruct H0.
+apply in_or_app. left. apply in_or_app. tauto.
+apply in_or_app. right. apply in_or_app. tauto.
+Qed.
+Proposition aoccur_limp_left {p q: assert} {y: V}:
+  ~In y (aoccur (limp p q)) -> ~In y (aoccur p).
+unfold aoccur. intros. intro. apply H. simpl.
+apply in_app_or in H0. destruct H0.
+apply in_or_app. left. apply in_or_app. tauto.
+apply in_or_app. right. apply in_or_app. tauto.
+Qed.
+Proposition aoccur_limp_right {p q: assert} {y: V}:
+  ~In y (aoccur (limp p q)) -> ~In y (aoccur q).
+unfold aoccur. intros. intro. apply H. simpl.
+apply in_app_or in H0. destruct H0.
+apply in_or_app. left. apply in_or_app. tauto.
+apply in_or_app. right. apply in_or_app. tauto.
+Qed.
+Proposition aoccur_lexists {p: assert} {x y: V}:
+  ~In y (aoccur (lexists x p)) -> ~In y (aoccur p).
+unfold aoccur. intros. intro. apply H. simpl.
+apply in_app_or in H0. destruct H0.
+right. apply in_or_app. tauto.
+destruct (Nat.eq_dec x y). tauto.
+right. apply in_or_app. right.
+apply In_remove; assumption.
+Qed.
+Proposition aoccur_lforall {p: assert} {x y: V}:
+  ~In y (aoccur (lforall x p)) -> ~In y (aoccur p).
+unfold aoccur. intros. intro. apply H. simpl.
+apply in_app_or in H0. destruct H0.
+right. apply in_or_app. tauto.
+destruct (Nat.eq_dec x y). tauto.
+right. apply in_or_app. right.
+apply In_remove; assumption.
+Qed.
+Proposition aoccur_sand_left {p q: assert} {y: V}:
+  ~In y (aoccur (sand p q)) -> ~In y (aoccur p).
+unfold aoccur. intros. intro. apply H. simpl.
+apply in_app_or in H0. destruct H0.
+apply in_or_app. left. apply in_or_app. tauto.
+apply in_or_app. right. apply in_or_app. tauto.
+Qed.
+Proposition aoccur_sand_right {p q: assert} {y: V}:
+  ~In y (aoccur (sand p q)) -> ~In y (aoccur q).
+unfold aoccur. intros. intro. apply H. simpl.
+apply in_app_or in H0. destruct H0.
+apply in_or_app. left. apply in_or_app. tauto.
+apply in_or_app. right. apply in_or_app. tauto.
+Qed.
+Proposition aoccur_simp_left {p q: assert} {y: V}:
+  ~In y (aoccur (simp p q)) -> ~In y (aoccur p).
+unfold aoccur. intros. intro. apply H. simpl.
+apply in_app_or in H0. destruct H0.
+apply in_or_app. left. apply in_or_app. tauto.
+apply in_or_app. right. apply in_or_app. tauto.
+Qed.
+Proposition aoccur_simp_right {p q: assert} {y: V}:
+  ~In y (aoccur (simp p q)) -> ~In y (aoccur q).
+unfold aoccur. intros. intro. apply H. simpl.
+apply in_app_or in H0. destruct H0.
+apply in_or_app. left. apply in_or_app. tauto.
+apply in_or_app. right. apply in_or_app. tauto.
+Qed.
+Fixpoint areplace (p: assert) (x y: V) (H: ~In y (aoccur p)): assert :=
+  match p, H with
+  | test g, _ => test (gsub g x y)
+  | emp, _ => emp
+  | pointsto e1 e2, _ => pointsto (esub e1 x y) (esub e2 x y)
+  | land p q, H => land (areplace p x y (aoccur_land_left H))
+        (areplace q x y (aoccur_land_right H))
+  | lor p q, H => lor (areplace p x y (aoccur_lor_left H))
+        (areplace q x y (aoccur_lor_right H))
+  | limp p q, H => limp (areplace p x y (aoccur_limp_left H))
+        (areplace q x y (aoccur_limp_right H))
+  | lexists z p, H => match Nat.eq_dec x z with
+      | left _ => lexists y (areplace p x y (aoccur_lexists H))
+      | right _ => lexists z (areplace p x y (aoccur_lexists H))
+      end
+  | lforall z p, H => match Nat.eq_dec x z with
+      | left _ => lforall y (areplace p x y (aoccur_lforall H))
+      | right _ => lforall z (areplace p x y (aoccur_lforall H))
+      end
+  | sand p q, H => sand (areplace p x y (aoccur_sand_left H))
+        (areplace q x y (aoccur_sand_right H))
+  | simp p q, H => simp (areplace p x y (aoccur_simp_left H))
+        (areplace q x y (aoccur_simp_right H))
+  end.
+
+Proposition areplace_no_var (p: assert) (x y: V) (H: ~In y (aoccur p)):
+  x <> y -> ~In x (aoccur (areplace p x y H)).
+intro. induction p; simpl.
+- intro. apply in_app_or in H1. destruct H1.
+  unfold abound in H1. inversion H1.
+  apply in_app_or in H1. destruct H1.
+  eapply remove_In. apply H1. inversion H1.
+  apply H0. symmetry. assumption. inversion H2.
+- intro. assumption.
+- intro. apply in_app_or in H1. destruct H1.
+  unfold abound in H1. inversion H1.
+  apply in_app_or in H1. destruct H1.
+  apply in_app_or in H1. destruct H1.
+  eapply remove_In. apply H1. inversion H1.
+  apply H0. symmetry. assumption. inversion H2.
+  apply in_app_or in H1. destruct H1.
+  eapply remove_In. apply H1. inversion H1.
+  apply H0. symmetry. assumption. inversion H2.
+- intro. apply in_app_or in H1. destruct H1.
+  simpl in H1. apply in_app_or in H1. destruct H1.
+  eapply IHp1. apply in_or_app. left. apply H1.
+  eapply IHp2. apply in_or_app. left. apply H1.
+  simpl in H1. apply in_app_or in H1. destruct H1.
+  eapply IHp1. apply in_or_app. right. apply H1.
+  eapply IHp2. apply in_or_app. right. apply H1.
+- intro. apply in_app_or in H1. destruct H1.
+  simpl in H1. apply in_app_or in H1. destruct H1.
+  eapply IHp1. apply in_or_app. left. apply H1.
+  eapply IHp2. apply in_or_app. left. apply H1.
+  simpl in H1. apply in_app_or in H1. destruct H1.
+  eapply IHp1. apply in_or_app. right. apply H1.
+  eapply IHp2. apply in_or_app. right. apply H1.
+- intro. apply in_app_or in H1. destruct H1.
+  simpl in H1. apply in_app_or in H1. destruct H1.
+  eapply IHp1. apply in_or_app. left. apply H1.
+  eapply IHp2. apply in_or_app. left. apply H1.
+  simpl in H1. apply in_app_or in H1. destruct H1.
+  eapply IHp1. apply in_or_app. right. apply H1.
+  eapply IHp2. apply in_or_app. right. apply H1.
+- intro. destruct (Nat.eq_dec x v); simpl in H1.
+  destruct H1. apply H0. symmetry. assumption.
+  apply in_app_or in H1. destruct H1.
+  eapply IHp. apply in_or_app. left. apply H1.
+  apply In_remove_elim in H1.
+  eapply IHp. apply in_or_app. right. apply H1.
+  intro. apply H0. symmetry. assumption.
+  destruct H1. apply n. symmetry. assumption.
+  apply in_app_or in H1. destruct H1.
+  eapply IHp. apply in_or_app. left. apply H1.
+  apply In_remove_elim in H1.
+  eapply IHp. apply in_or_app. right. apply H1.
+  intro. apply n. symmetry. assumption.
+- intro. destruct (Nat.eq_dec x v); simpl in H1.
+  destruct H1. apply H0. symmetry. assumption.
+  apply in_app_or in H1. destruct H1.
+  eapply IHp. apply in_or_app. left. apply H1.
+  apply In_remove_elim in H1.
+  eapply IHp. apply in_or_app. right. apply H1.
+  intro. apply H0. symmetry. assumption.
+  destruct H1. apply n. symmetry. assumption.
+  apply in_app_or in H1. destruct H1.
+  eapply IHp. apply in_or_app. left. apply H1.
+  apply In_remove_elim in H1.
+  eapply IHp. apply in_or_app. right. apply H1.
+  intro. apply n. symmetry. assumption.
+- intro. apply in_app_or in H1. destruct H1.
+  simpl in H1. apply in_app_or in H1. destruct H1.
+  eapply IHp1. apply in_or_app. left. apply H1.
+  eapply IHp2. apply in_or_app. left. apply H1.
+  simpl in H1. apply in_app_or in H1. destruct H1.
+  eapply IHp1. apply in_or_app. right. apply H1.
+  eapply IHp2. apply in_or_app. right. apply H1.
+- intro. apply in_app_or in H1. destruct H1.
+  simpl in H1. apply in_app_or in H1. destruct H1.
+  eapply IHp1. apply in_or_app. left. apply H1.
+  eapply IHp2. apply in_or_app. left. apply H1.
+  simpl in H1. apply in_app_or in H1. destruct H1.
+  eapply IHp1. apply in_or_app. right. apply H1.
+  eapply IHp2. apply in_or_app. right. apply H1.
+Qed.
+
+Proposition iff_split_and (A B C D: Prop):
+  (A <-> C) -> (B <-> D) -> ((A /\ B) <-> (C /\ D)).
+intros; split; intros (H1&H2); split.
+1,3: apply H; assumption.
+all: apply H0; assumption.
+Qed.
+Proposition iff_split_or (A B C D: Prop):
+  (A <-> C) -> (B <-> D) -> ((A \/ B) <-> (C \/ D)).
+intros; split; intros H1; destruct H1.
+1,3: apply H in H1; left; apply H1.
+all: apply H0 in H1; right; apply H1.
+Qed.
+Proposition iff_split_imp (A B C D: Prop):
+  (A <-> C) -> (B <-> D) -> ((A -> B) <-> (C -> D)).
+intros. split; intros H1 H2.
+all: apply H0; apply H1; apply H; assumption.
+Qed.
+Proposition iff_split_and_exists {T: Type}
+    (A B C D: T -> Prop) (H: T -> T -> Prop):
+  (forall x, (A x <-> C x)) -> (forall y, (B y <-> D y)) ->
+    ((exists x y, H x y /\ A x /\ B y) <->
+     (exists x y, H x y /\ C x /\ D y)).
+intros; split; intros; destruct H2; destruct H2;
+  exists x; exists x0; destruct H2; destruct H3;
+  split; try assumption; split.
+1,3: apply H0; assumption.
+all: apply H1; assumption.
+Qed.
+Proposition iff_split_imp_forall {T: Type}
+    (A B C D: T -> Prop) (H: T -> T -> Prop):
+  (forall x, (A x <-> C x)) -> (forall x, (B x <-> D x)) ->
+    ((forall x y, H x y -> A y -> B x) <->
+     (forall x y, H x y -> C y -> D x)).
+intros; split; intros;
+apply H2 in H3.
+1,3: apply H1; assumption.
+all: apply H0; assumption.
+Qed.
+Proposition iff_split_exists {T: Type} (A B: T -> Prop):
+  (forall x, (A x <-> B x)) -> ((exists x, A x) <-> (exists x, B x)).
+intro; split; intro; destruct H0; exists x; apply H; assumption.
+Qed.
+Proposition iff_split_forall {T: Type} (A B: T -> Prop):
+  (forall x, (A x <-> B x)) -> ((forall x, A x) <-> (forall x, B x)).
+intro; split; intros; apply H; apply H0.
+Qed.
+Proposition iff_split_forall2 {T: Type} (A B: T -> T -> Prop):
+  (forall x y, (A x y <-> B x y)) ->
+  ((forall x y, A x y) <-> (forall x y, B x y)).
+intro; split; intros; apply H; apply H0.
+Qed.
+
+Proposition asub_refl_equiv (p: assert) (x: V):
+  forall ps, asub p x x = inleft ps ->
+    validity (lequiv p ps).
+intros. intro. intros. rewrite satisfy_lequiv.
+generalize dependent ps.
+generalize dependent s.
+generalize dependent h.
+induction p; intros.
+- simpl in H; inversion H. apply gsub_refl_equiv.
+- simpl in H; inversion H. reflexivity.
+- simpl in H; inversion H. simpl. apply iff_split_and.
+  rewrite store_update_nop. reflexivity.
+  rewrite store_update_nop. reflexivity.
+- simpl in H.
+  destruct (asub p1 x x). 2: inversion H.
+  destruct (asub p2 x x); inversion H.
+  repeat rewrite satisfy_land.
+  apply iff_split_and.
+  apply IHp1; reflexivity.
+  apply IHp2; reflexivity.
+- simpl in H.
+  destruct (asub p1 x x). 2: inversion H.
+  destruct (asub p2 x x); inversion H.
+  repeat rewrite satisfy_lor.
+  apply iff_split_or.
+  apply IHp1; reflexivity.
+  apply IHp2; reflexivity.
+- simpl in H.
+  destruct (asub p1 x x). 2: inversion H.
+  destruct (asub p2 x x); inversion H.
+  repeat rewrite satisfy_limp.
+  apply iff_split_imp.
+  apply IHp1; reflexivity.
+  apply IHp2; reflexivity.
+- simpl in H.
+  destruct (Nat.eq_dec x v).
+  inversion H. reflexivity.
+  destruct (asub p x x); inversion H.
+  repeat rewrite satisfy_lexists.
+  apply iff_split_exists; intro.
+  apply IHp; reflexivity.
+- simpl in H.
+  destruct (Nat.eq_dec x v).
+  inversion H. reflexivity.
+  destruct (asub p x x); inversion H.
+  repeat rewrite satisfy_lforall.
+  apply iff_split_forall; intro.
+  apply IHp; reflexivity.
+- simpl in H.
+  destruct (asub p1 x x). 2: inversion H.
+  destruct (asub p2 x x); inversion H.
+  repeat rewrite satisfy_sand.
+  apply iff_split_and_exists; intro.
+  apply IHp1; reflexivity.
+  apply IHp2; reflexivity.
+- simpl in H.
+  destruct (asub p1 x x). 2: inversion H.
+  destruct (asub p2 x x); inversion H.
+  repeat rewrite satisfy_simpl.
+  apply iff_split_imp_forall; intro.
+  apply IHp1; reflexivity.
+  apply IHp2; reflexivity.
+Qed.
+
+Lemma substitution_lemma (h: heap) (s: store) (p: assert) (x: V) (e: expr):
+  forall ps, asub p x e = inleft ps ->
+    (satisfy h s ps <-> satisfy h (store_update s x (eval e s)) p).
+generalize dependent s; generalize dependent h; induction p; intros;
+try (simpl in H; inversion H; unfold satisfy; apply iff_refl; fail).
+- simpl in H; destruct (asub p1 x e); [destruct (asub p2 x e)|].
+  all: inversion H.
+  simpl; apply iff_split_and.
+  apply IHp1; reflexivity.
+  apply IHp2; reflexivity.
+- simpl in H; destruct (asub p1 x e); [destruct (asub p2 x e)|].
+  all: inversion H.
+  simpl; apply iff_split_or.
+  apply IHp1; reflexivity.
+  apply IHp2; reflexivity.
+- simpl in H; destruct (asub p1 x e); [destruct (asub p2 x e)|].
+  all: inversion H.
+  simpl. apply iff_split_imp.
+  apply IHp1; reflexivity.
+  apply IHp2; reflexivity.
+- simpl in H. destruct (Nat.eq_dec x v).
+  + inversion H; simpl; split; intro; destruct H0; exists x0.
+    rewrite e0. rewrite store_update_collapse. assumption.
+    rewrite e0 in H0. rewrite store_update_collapse in H0. assumption.
+  + destruct (in_dec Nat.eq_dec v (evar e));
+      [|destruct (asub p x e)].
+    all: inversion H.
+    simpl; split; intro; destruct H0; exists x0.
+    * rewrite store_update_swap.
+      (* Coincidence condition *)
+      assert (eval e s = eval e (store_update s v x0)). {
+        apply econd; intro; intro. unfold store_update.
+        destruct (Nat.eq_dec v x1).
+        exfalso. rewrite e0 in n0. apply n0; assumption.
+        reflexivity. }
+      rewrite H2. apply -> (IHp h (store_update s v x0)).
+      apply H0. reflexivity. assumption.
+    * rewrite store_update_swap in H0.
+      (* Coincidence condition *)
+      assert (eval e s = eval e (store_update s v x0)). {
+        apply econd; intro; intro. unfold store_update.
+        destruct (Nat.eq_dec v x1).
+        exfalso. rewrite e0 in n0. apply n0; assumption.
+        reflexivity. }
+      rewrite H2 in H0. apply <- (IHp h (store_update s v x0)).
+      assumption. reflexivity. assumption.
+- simpl in H. destruct (Nat.eq_dec x v).
+  + inversion H. simpl. split; intros.
+    rewrite e0. rewrite store_update_collapse. apply H0.
+    rewrite e0 in H0. specialize H0 with v0.
+    rewrite store_update_collapse in H0. assumption.
+  + destruct (in_dec Nat.eq_dec v (evar e));
+      [|destruct (asub p x e)].
+    all: inversion H.
+    simpl; split; intros.
+    * rewrite store_update_swap.
+      (* Coincidence condition *)
+      assert (eval e s = eval e (store_update s v v0)). {
+        apply econd; intro; intro. unfold store_update.
+        destruct (Nat.eq_dec v x0).
+        exfalso. rewrite e0 in n0. apply n0; assumption.
+        reflexivity. }
+      rewrite H2. apply -> (IHp h (store_update s v v0)).
+      apply H0. reflexivity. assumption.
+    * specialize H0 with v0. rewrite store_update_swap in H0.
+      (* Coincidence condition *)
+      assert (eval e s = eval e (store_update s v v0)). {
+        apply econd; intro; intro. unfold store_update.
+        destruct (Nat.eq_dec v x0).
+        exfalso. rewrite e0 in n0. apply n0; assumption.
+        reflexivity. }
+      rewrite H2 in H0. apply <- (IHp h (store_update s v v0)).
+      assumption. reflexivity. assumption.
+- simpl in H; destruct (asub p1 x e); [destruct (asub p2 x e)|].
+  all: inversion H.
+  simpl.
+  apply iff_split_and_exists; intro hh.
+  apply IHp1; reflexivity.
+  apply IHp2; reflexivity.
+- simpl in H; destruct (asub p1 x e); [destruct (asub p2 x e)|].
+  all: inversion H.
+  simpl.
+  apply iff_split_imp_forall; intro hh.
+  apply IHp1; reflexivity.
+  apply IHp2; reflexivity.
+Qed.
+
+Proposition areplace_equiv_asub (p: assert) (x y: V) (H: ~In y (aoccur p)):
+  forall ps, asub p x y = inleft ps ->
+    validity (lequiv (areplace p x y H) ps).
+(* The hypothesis asub p x y = inleft ps is consistent. *)
+intros; intro h; intro s.
+rewrite satisfy_lequiv.
+generalize dependent ps.
+generalize dependent H.
+generalize dependent s.
+generalize dependent h.
+induction p; intros.
+1,2,3: simpl in *; inversion H0; simpl; tauto.
+1,2,3: simpl in H0; destruct (asub p1 x y);
+  destruct (asub p2 x y); inversion H0.
+1,2,3: simpl.
+- apply iff_split_and.
+  specialize (IHp1 h s (aoccur_land_left H) a eq_refl).
+  assumption.
+  specialize (IHp2 h s (aoccur_land_right H) a0 eq_refl).
+  assumption.
+- apply iff_split_or.
+  specialize (IHp1 h s (aoccur_lor_left H) a eq_refl).
+  assumption.
+  specialize (IHp2 h s (aoccur_lor_right H) a0 eq_refl).
+  assumption.
+- apply iff_split_imp.
+  specialize (IHp1 h s (aoccur_limp_left H) a eq_refl).
+  assumption.
+  specialize (IHp2 h s (aoccur_limp_right H) a0 eq_refl).
+  assumption.
+- simpl in H0. simpl.
+  destruct (Nat.eq_dec x v).
+  + inversion H0. rewrite <- e at 2. clear H0 H2. simpl.
+    apply iff_split_exists; intro.
+    pose proof (asub_defined p x y). destruct H0.
+    { intros. simpl in H0. destruct H0.
+      intro. apply H. rewrite H0. unfold aoccur.
+      apply in_or_app. left. simpl. tauto. inversion H0. }
+    specialize (IHp h (store_update s y x0) (aoccur_lexists H) _ H0).
+    rewrite IHp.
+    pose proof (substitution_lemma h (store_update s y x0) p x y
+        x1 H0).
+    rewrite H1. simpl. rewrite store_update_lookup.
+    apply acond. intro. intros.
+    unfold store_update. destruct (Nat.eq_dec x x2).
+    reflexivity. destruct (Nat.eq_dec y x2).
+    exfalso. apply H. unfold aoccur. apply in_or_app.
+    rewrite <- e. right. simpl.
+    apply In_remove. rewrite e0. assumption.
+    rewrite e0. assumption. reflexivity.
+  + destruct (Nat.eq_dec y v). inversion H0.
+    destruct (asub p x y). inversion H0. clear H0 H2.
+    simpl. apply iff_split_exists; intro.
+    apply IHp. reflexivity.
+    inversion H0.
+- simpl in H0. simpl.
+  destruct (Nat.eq_dec x v).
+  + inversion H0. rewrite <- e at 2. clear H0 H2. simpl.
+    apply iff_split_forall; intro.
+    pose proof (asub_defined p x y). destruct H0.
+    { intros. simpl in H0. destruct H0.
+      intro. apply H. rewrite H0. unfold aoccur.
+      apply in_or_app. left. simpl. tauto. inversion H0. }
+    specialize (IHp h (store_update s y x0) (aoccur_lforall H) _ H0).
+    rewrite IHp.
+    pose proof (substitution_lemma h (store_update s y x0) p x y
+        x1 H0).
+    rewrite H1. simpl. rewrite store_update_lookup.
+    apply acond. intro. intros.
+    unfold store_update. destruct (Nat.eq_dec x x2).
+    reflexivity. destruct (Nat.eq_dec y x2).
+    exfalso. apply H. unfold aoccur. apply in_or_app.
+    rewrite <- e. right. simpl.
+    apply In_remove. rewrite e0. assumption.
+    rewrite e0. assumption. reflexivity.
+  + destruct (Nat.eq_dec y v). inversion H0.
+    destruct (asub p x y). inversion H0. clear H0 H2.
+    simpl. apply iff_split_forall; intro.
+    apply IHp. reflexivity.
+    inversion H0.
+- simpl in H0; destruct (asub p1 x y);
+  destruct (asub p2 x y); inversion H0. simpl.
+  apply iff_split_and_exists; intro.
+  specialize (IHp1 x0 s (aoccur_sand_left H) a eq_refl).
+  assumption.
+  specialize (IHp2 y0 s (aoccur_sand_right H) a0 eq_refl).
+  assumption.
+- simpl in H0; destruct (asub p1 x y);
+  destruct (asub p2 x y); inversion H0. simpl.
+  apply iff_split_imp_forall; intro.
+  specialize (IHp1 x0 s (aoccur_simp_left H) a eq_refl).
+  assumption.
+  specialize (IHp2 x0 s (aoccur_simp_right H) a0 eq_refl).
+  assumption.
+Qed.
+
+Proposition renaming_exists (x y: V) (p: assert):
+  x = y \/ ~In y (avar p) -> forall ps, asub p x y = inleft ps ->
+    validity (lequiv (lexists x p) (lexists y ps)).
+intros.
+unfold validity; intros.
+rewrite satisfy_lequiv.
+repeat rewrite satisfy_lexists.
+apply iff_split_exists; intros.
+destruct H.
+- rewrite H in *.
+  pose proof (asub_refl_equiv p y ps H0).
+  specialize (H1 h (store_update s y x0)).
+  rewrite satisfy_lequiv in H1.
+  apply H1.
+- pose proof (substitution_lemma h (store_update s y x0)
+    p x y ps H0).
+  rewrite H1. simpl. rewrite store_update_lookup.
+  apply acond. intro. intros.
+  unfold store_update.
+  destruct (Nat.eq_dec x x1). reflexivity.
+  destruct (Nat.eq_dec y x1). rewrite <- e in H2.
+  exfalso. apply H. assumption. reflexivity.
+Qed.
+
+Definition hasvaldash_fresh (e: expr) (xs: list V): assert :=
+  let y := (fresh (evar e ++ xs)) in
+    sand (lexists y (pointsto e y)) true.
+
+Proposition equiv_hasvaldash_fresh (e: expr) (xs: list V):
+  validity (lequiv (hasvaldash e) (hasvaldash_fresh e xs)).
+unfold validity; intros.
+rewrite satisfy_lequiv.
+unfold hasvaldash. unfold pointstodash.
+unfold hasvaldash_fresh.
+repeat rewrite satisfy_sand.
+apply iff_split_and_exists.
+2: tauto.
+intros.
+symmetry.
+remember (fresh (evar e)) as v.
+remember (fresh (evar e ++ xs)) as w.
+cut (satisfy x s (lexists v (pointsto e v)) <->
+    satisfy x s (lexists v (pointsto (esub e w v) (esub w w v)))).
+intro. rewrite H. clear H. apply renaming_exists.
+- simpl. destruct (Nat.eq_dec w v).
+  left. tauto.
+  right. intro.
+  apply in_app_or in H. destruct H.
+  eapply fresh_notIn. rewrite Heqv in H. apply H.
+  inversion H. apply n. assumption.
+  inversion H0.
+- simpl. reflexivity.
+- repeat rewrite satisfy_lexists.
+  apply iff_split_exists; intro.
+  cut (eval e (store_update s v x0) =
+       eval e (store_update (store_update s v x0) w x0)). intro.
+  simpl. repeat rewrite store_update_lookup.
+  repeat rewrite H. reflexivity.
+  apply econd. intro. intro.
+  unfold store_update.
+  destruct (Nat.eq_dec v x1);
+  destruct (Nat.eq_dec w x1); try reflexivity.
+  rewrite <- e0 in H.
+  rewrite Heqw in H.
+  exfalso. eapply fresh_notInApp. apply H.
+Qed.
+
+Corollary soundness_basic (p: assert) (x: V) (e: expr):
+  forall ps, asub p x e = inleft ps ->
+    strong_partial_correct ps (basic x e) p.
+intros; unfold strong_partial_correct; intros.
+split; intro; intros; try inversion H1.
+rewrite <- H7.
+pose proof (substitution_lemma h s p x e ps H).
+apply H2. assumption.
+Qed.
+
+Corollary soundness_lookup (p: assert) (x: V) (e: expr):
+  forall y, ~In y (aoccur p) /\ ~In y (evar e) /\ y <> x ->
+    forall ps, asub p x y = inleft ps ->
+      strong_partial_correct (lexists y
+        (land (sand (pointsto e y) true) ps)) (lookup x e) p.
+intros; unfold strong_partial_correct; intros.
+simpl in H1; destruct H1 as (v & H1).
+destruct H1 as ((h1 & h2 & H1) & H2).
+destruct H1 as (H1 & ((H3 & H4) & _)).
+assert (eval e s = eval e (store_update s y v)). {
+  apply econd; intro z; intro; unfold store_update.
+  destruct (Nat.eq_dec y z). rewrite <- e0 in H5.
+  exfalso. destruct H as (_ & H & _); apply H. assumption.
+  reflexivity. }
+rewrite <- H5 in H3, H4.
+rewrite store_update_lookup in H4.
+clear H5.
+split.
+- intro. inversion H5.
+  unfold Partition in H1.
+  destruct H1 as (((G1 & G2) & G3) & G4).
+  rewrite G3 in H7.
+  rewrite H4 in H7. inversion H7.
+  unfold dom. intro. rewrite H4 in H1. inversion H1.
+- intros. inversion H5.
+  rewrite <- H11 in *.
+  assert (v0 = v).
+  destruct H1 as (((G1 & G2) & G3) & G4).
+  rewrite G3 in H7. rewrite H4 in H7. inversion H7. reflexivity.
+  unfold dom. intro. rewrite H4 in H1. inversion H1.
+  rewrite H13.
+  pose proof (substitution_lemma h (store_update s y v) _ _ _ _ H0).
+  apply H14 in H2.
+  simpl in H2.
+  rewrite store_update_lookup in H2.
+  eapply acond. 2: apply H2.
+  intro. intro.
+  unfold store_update.
+  destruct (Nat.eq_dec x x1). reflexivity.
+  destruct (Nat.eq_dec y x1). rewrite <- e1 in H15.
+  destruct H. exfalso. apply H. unfold aoccur.
+  apply in_or_app. right. assumption. reflexivity.
+Qed.
+
+Proposition asubheap_land_proof1 {x: V} {e: expr} {p q: assert}:
+  ((exists y, In y (evar e) /\ In y (abound p)) \/ In x (abound p)) ->
+  (exists y, In y (evar e) /\ In y (abound (land p q))) \/
+    In x (abound (land p q)).
+intro H; destruct H as [(y & (H1 & H2)) | H].
+left. exists y; split; auto; simpl.
+apply in_or_app; left; auto.
+right. simpl. apply in_or_app. left. assumption.
+Qed.
+Proposition asubheap_land_proof2 {x: V} {e: expr} {p q: assert}:
+  ((exists y, In y (evar e) /\ In y (abound q)) \/ In x (abound q)) ->
+  (exists y, In y (evar e) /\ In y (abound (land p q))) \/
+    In x (abound (land p q)).
+intro H; destruct H as [(y & (H1 & H2)) | H].
+left. exists y; split; auto; simpl.
+apply in_or_app; right; auto.
+right. simpl. apply in_or_app. right. assumption.
+Qed.
+Proposition asubheap_lor_proof1 {x: V} {e: expr} {p q: assert}:
+  ((exists y, In y (evar e) /\ In y (abound p)) \/ In x (abound p)) ->
+  (exists y, In y (evar e) /\ In y (abound (lor p q))) \/
+    In x (abound (lor p q)).
+intro H; destruct H as [(y & (H1 & H2)) | H].
+left. exists y; split; auto; simpl.
+apply in_or_app; left; auto.
+right. simpl. apply in_or_app. left. assumption.
+Qed.
+Proposition asubheap_lor_proof2 {x: V} {e: expr} {p q: assert}:
+  ((exists y, In y (evar e) /\ In y (abound q)) \/ In x (abound q)) ->
+  (exists y, In y (evar e) /\ In y (abound (lor p q))) \/
+    In x (abound (lor p q)).
+intro H; destruct H as [(y & (H1 & H2)) | H].
+left. exists y; split; auto; simpl.
+apply in_or_app; right; auto.
+right. simpl. apply in_or_app. right. assumption.
+Qed.
+Proposition asubheap_limp_proof1 {x: V} {e: expr} {p q: assert}:
+  ((exists y, In y (evar e) /\ In y (abound p)) \/ In x (abound p)) ->
+  (exists y, In y (evar e) /\ In y (abound (limp p q))) \/
+    In x (abound (limp p q)).
+intro H; destruct H as [(y & (H1 & H2)) | H].
+left. exists y; split; auto; simpl.
+apply in_or_app; left; auto.
+right. simpl. apply in_or_app. left. assumption.
+Qed.
+Proposition asubheap_limp_proof2 {x: V} {e: expr} {p q: assert}:
+  ((exists y, In y (evar e) /\ In y (abound q)) \/ In x (abound q)) ->
+  (exists y, In y (evar e) /\ In y (abound (limp p q))) \/
+    In x (abound (limp p q)).
+intro H; destruct H as [(y & (H1 & H2)) | H].
+left. exists y; split; auto; simpl.
+apply in_or_app; right; auto.
+right. simpl. apply in_or_app. right. assumption.
+Qed.
+Proposition asubheap_lexists_proof1 {x: V} {e: expr} {y: V} {p: assert}:
+  y = x ->
+  (exists y : V, In y (evar e) /\ In y (abound (lexists x p))) \/
+    In y (abound (lexists x p)).
+intro H. right. rewrite H. simpl. left. reflexivity.
+Qed.
+Proposition asubheap_lexists_proof2 {x: V} {e: expr} {y: V} {p: assert}:
+  In x (evar e) ->
+  ((exists y, In y (evar e) /\ In y (abound (lexists x p))) \/
+    In y (abound (lexists x p))).
+intro H. left.
+exists x; split; auto; simpl.
+left; auto.
+Qed.
+Proposition asubheap_lexists_proof3 {x: V} {e: expr} {y: V} {p: assert}:
+  ((exists y, In y (evar e) /\ In y (abound p)) \/ In y (abound p)) ->
+  ((exists y, In y (evar e) /\ In y (abound (lexists x p))) \/
+    In y (abound (lexists x p))).
+intro H; destruct H as [(z & (H1 & H2)) | H].
+left. exists z; split; auto; simpl.
+right; auto.
+right; simpl. right. assumption.
+Qed.
+Proposition asubheap_lforall_proof1 {x: V} {e: expr} {y: V} {p: assert}:
+  y = x ->
+  (exists y : V, In y (evar e) /\ In y (abound (lforall x p))) \/
+    In y (abound (lforall x p)).
+intro H. right. rewrite H. simpl. left. reflexivity.
+Qed.
+Proposition asubheap_lforall_proof2 {x: V} {e: expr} {y: V} {p: assert}:
+  In x (evar e) ->
+  ((exists y, In y (evar e) /\ In y (abound (lforall x p))) \/
+    In y (abound (lforall x p))).
+intro H. left.
+exists x; split; auto; simpl.
+left; auto.
+Qed.
+Proposition asubheap_lforall_proof3 {x: V} {e: expr} {y: V} {p: assert}:
+  ((exists y, In y (evar e) /\ In y (abound p)) \/ In y (abound p)) ->
+  ((exists y, In y (evar e) /\ In y (abound (lforall x p))) \/
+    In y (abound (lforall x p))).
+intro H; destruct H as [(z & (H1 & H2)) | H].
+left. exists z; split; auto; simpl.
+right; auto.
+right; simpl. right. assumption.
+Qed.
+Proposition asubheap_sand_proof1 {x: V} {e: expr} {p q: assert}:
+  ((exists y, In y (evar e) /\ In y (abound p)) \/ In x (abound p)) ->
+  (exists y, In y (evar e) /\ In y (abound (sand p q))) \/
+    In x (abound (sand p q)).
+intro H; destruct H as [(y & (H1 & H2)) | H].
+left. exists y; split; auto; simpl.
+apply in_or_app; left; auto.
+right. simpl. apply in_or_app. left. assumption.
+Qed.
+Proposition asubheap_sand_proof2 {x: V} {e: expr} {p q: assert}:
+  ((exists y, In y (evar e) /\ In y (abound q)) \/ In x (abound q)) ->
+  (exists y, In y (evar e) /\ In y (abound (sand p q))) \/
+    In x (abound (sand p q)).
+intro H; destruct H as [(y & (H1 & H2)) | H].
+left. exists y; split; auto; simpl.
+apply in_or_app; right; auto.
+right. simpl. apply in_or_app. right. assumption.
+Qed.
+Proposition asubheap_simp_proof1 {x: V} {e: expr} {p q: assert}:
+  ((exists y, In y (evar e) /\ In y (abound p)) \/ In x (abound p)) ->
+  (exists y, In y (evar e) /\ In y (abound (simp p q))) \/
+    In x (abound (simp p q)).
+intro H; destruct H as [(y & (H1 & H2)) | H].
+left. exists y; split; auto; simpl.
+apply in_or_app; left; auto.
+right. simpl. apply in_or_app. left. assumption.
+Qed.
+Proposition asubheap_simp_proof2 {x: V} {e: expr} {p q: assert}:
+  ((exists y, In y (evar e) /\ In y (abound q)) \/ In x (abound q)) ->
+  (exists y, In y (evar e) /\ In y (abound (simp p q))) \/
+    In x (abound (simp p q)).
+intro H; destruct H as [(y & (H1 & H2)) | H].
+left. exists y; split; auto; simpl.
+apply in_or_app; right; auto.
+right. simpl. apply in_or_app. right. assumption.
+Qed.
+
+Fixpoint asubheap (p: assert) (x: V) (e: expr):
+    assert +
+    {(exists y, In y (evar e) /\ In y (abound p)) \/ In x (abound p)} :=
+  match p with
+  | test g => inleft (test g)
+  | emp => inleft (test false)
+  | pointsto e1 e2 => inleft (land (lor emp (pointstodash x))
+      (land (equals x e1) (equals e2 e)))
+  | land p q => match asubheap p x e with
+      | inleft ps => match asubheap q x e with
+          | inleft qs => inleft (land ps qs)
+          | inright H => inright (asubheap_land_proof2 H)
+          end
+      | inright H => inright (asubheap_land_proof1 H)
+      end
+  | lor p q => match asubheap p x e with
+      | inleft ps => match asubheap q x e with
+          | inleft qs => inleft (lor ps qs)
+          | inright H => inright (asubheap_lor_proof2 H)
+          end
+      | inright H => inright (asubheap_lor_proof1 H)
+      end
+  | limp p q => match asubheap p x e with
+      | inleft ps => match asubheap q x e with
+          | inleft qs => inleft (limp ps qs)
+          | inright H => inright (asubheap_limp_proof2 H)
+          end
+      | inright H => inright (asubheap_limp_proof1 H)
+      end
+  | lexists y p => match Nat.eq_dec x y with
+      | left H => inright (asubheap_lexists_proof1 H)
+      | right _ => match in_dec Nat.eq_dec y (evar e) with
+          | left H => inright (asubheap_lexists_proof2 H)
+          | right _ => match asubheap p x e with
+              | inleft ps => inleft (lexists y ps)
+              | inright H => inright (asubheap_lexists_proof3 H)
+              end
+          end
+      end
+  | lforall y p => match Nat.eq_dec x y with
+      | left H => inright (asubheap_lforall_proof1 H)
+      | right _ => match in_dec Nat.eq_dec y (evar e) with
+          | left H => inright (asubheap_lforall_proof2 H)
+          | right _ => match asubheap p x e with
+              | inleft ps => inleft (lforall y ps)
+              | inright H => inright (asubheap_lforall_proof3 H)
+              end
+          end
+      end
+  | sand p q => match asubheap p x e with
+      | inleft ps => match asubheap q x e with
+          | inleft qs => let p' := (land p (lnot (hasvaldash x))) in
+              let q' := (land q (lnot (hasvaldash x))) in
+                inleft (lor (sand ps q') (sand p' qs))
+          | inright H => inright (asubheap_sand_proof2 H)
+          end
+      | inright H => inright (asubheap_sand_proof1 H)
+      end
+  | simp p q => match asubheap q x e with
+      | inleft qs => let p' := (land p (lnot (hasvaldash x))) in
+          inleft (simp p' qs)
+      | inright H => inright (asubheap_simp_proof2 H)
+      end
+  end.
+
+Proposition asubheap_defined (p: assert) (x: V) (e: expr):
+  ~In x (abound p) ->
+  (forall y, In y (evar e) -> ~In y (abound p)) ->
+  exists q, asubheap p x e = inleft q.
+induction p; intros.
+- exists (test g). reflexivity.
+- exists (test false). reflexivity.
+- exists (land (lor emp (pointstodash x))
+      (land (equals x e0) (equals e1 e))). reflexivity.
+- destruct IHp1.
+  intro. apply H. simpl. apply in_or_app. tauto.
+  intros. specialize (H0 y H1). intro.
+  apply H0. simpl. apply in_or_app. tauto.
+  destruct IHp2.
+  intro. apply H. simpl. apply in_or_app. tauto.
+  intros. specialize (H0 y H2). intro.
+  apply H0. simpl. apply in_or_app. tauto.
+  exists (land x0 x1). simpl.
+  rewrite H1. rewrite H2. reflexivity.
+- destruct IHp1.
+  intro. apply H. simpl. apply in_or_app. tauto.
+  intros. specialize (H0 y H1). intro.
+  apply H0. simpl. apply in_or_app. tauto.
+  destruct IHp2.
+  intro. apply H. simpl. apply in_or_app. tauto.
+  intros. specialize (H0 y H2). intro.
+  apply H0. simpl. apply in_or_app. tauto.
+  exists (lor x0 x1). simpl.
+  rewrite H1. rewrite H2. reflexivity.
+- destruct IHp1.
+  intro. apply H. simpl. apply in_or_app. tauto.
+  intros. specialize (H0 y H1). intro.
+  apply H0. simpl. apply in_or_app. tauto.
+  destruct IHp2.
+  intro. apply H. simpl. apply in_or_app. tauto.
+  intros. specialize (H0 y H2). intro.
+  apply H0. simpl. apply in_or_app. tauto.
+  exists (limp x0 x1). simpl.
+  rewrite H1. rewrite H2. reflexivity.
+- destruct IHp.
+  intro. apply H. simpl. tauto.
+  intros. specialize (H0 y H1). intro.
+  apply H0. simpl. tauto.
+  exists (lexists v x0). simpl.
+  destruct (Nat.eq_dec x v).
+  exfalso. apply H. rewrite e0. simpl. tauto.
+  destruct (in_dec Nat.eq_dec v (evar e)).
+  exfalso. specialize (H0 v i). apply H0. simpl. tauto.
+  rewrite H1. reflexivity.
+- destruct IHp.
+  intro. apply H. simpl. tauto.
+  intros. specialize (H0 y H1). intro.
+  apply H0. simpl. tauto.
+  exists (lforall v x0). simpl.
+  destruct (Nat.eq_dec x v).
+  exfalso. apply H. rewrite e0. simpl. tauto.
+  destruct (in_dec Nat.eq_dec v (evar e)).
+  exfalso. specialize (H0 v i). apply H0. simpl. tauto.
+  rewrite H1. reflexivity.
+- destruct IHp1.
+  intro. apply H. simpl. apply in_or_app. tauto.
+  intros. specialize (H0 y H1). intro.
+  apply H0. simpl. apply in_or_app. tauto.
+  destruct IHp2.
+  intro. apply H. simpl. apply in_or_app. tauto.
+  intros. specialize (H0 y H2). intro.
+  apply H0. simpl. apply in_or_app. tauto.
+  exists (lor (sand x0 (land p2 (lnot (hasvaldash x))))
+    (sand (land p1 (lnot (hasvaldash x))) x1)). simpl.
+  rewrite H1. rewrite H2. reflexivity.
+- destruct IHp2.
+  intro. apply H. simpl. apply in_or_app. tauto.
+  intros. specialize (H0 y H1). intro.
+  apply H0. simpl. apply in_or_app. tauto.
+  exists (simp (land p1 (lnot (hasvaldash x))) x0).
+  simpl. rewrite H1. reflexivity.
+Qed.
+
+Lemma heap_substitution_lemma (h: heap) (s: store)
+    (p: assert) (x: V) (e: expr):
+  forall ps, asubheap p x e = inleft ps ->
+    (satisfy h s ps <-> satisfy (heap_update h (s x) (eval e s)) s p).
+generalize dependent s; generalize dependent h; induction p; intros.
+simpl in H; inversion H; unfold satisfy; apply iff_refl.
+- simpl in *; inversion H; simpl. clear H H1.
+  split; intro. inversion H.
+  exfalso.
+  cut (Included Z (dom (heap_update h
+    (s x) (eval e s))) (Empty_set Z)); intro.
+  cut (Empty_set Z (s x)). intro.
+    inversion H1.
+  unfold Included in H0.
+  unfold Ensembles.In in H0.
+  apply H0; clear H0.
+  unfold dom; unfold heap_update.
+  destruct (Z.eq_dec (s x) (s x)).
+  intro. inversion H0.
+  exfalso; apply n; reflexivity.
+  rewrite H. auto.
+- simpl in *; inversion H; clear H H1.
+  rewrite satisfy_land.
+  rewrite satisfy_lor_emp_pointstodash.
+  rewrite satisfy_land.
+  rewrite satisfy_equals.
+  rewrite satisfy_equals.
+  split; intro.
+  + destruct H as (H & H1 & H2).
+    split.
+    rewrite <- H1. simpl.
+    apply <- dom_heap_update_Included_Singleton.
+    assumption.
+    rewrite H2. rewrite <- H1. simpl.
+    apply heap_update_lookup.
+  + destruct H as (H & H1).
+    pose proof (dom_heap_update_Singleton H).
+    rewrite <- H0 in H.
+    rewrite <- H0 in H1.
+    rewrite heap_update_lookup in H1.
+    split; [|split].
+    apply -> dom_heap_update_Included_Singleton.
+    apply H. simpl. apply H0. symmetry.
+    inversion H1. reflexivity.
+- simpl in H.
+  destruct (asubheap p1 x e).
+  destruct (asubheap p2 x e).
+  all: inversion H.
+  rewrite satisfy_land.
+  rewrite satisfy_land.
+  apply iff_split_and.
+  apply IHp1. reflexivity.
+  apply IHp2. reflexivity.
+- simpl in H.
+  destruct (asubheap p1 x e).
+  destruct (asubheap p2 x e).
+  all: inversion H.
+  rewrite satisfy_lor.
+  rewrite satisfy_lor.
+  apply iff_split_or.
+  apply IHp1. reflexivity.
+  apply IHp2. reflexivity.
+- simpl in H.
+  destruct (asubheap p1 x e).
+  destruct (asubheap p2 x e).
+  all: inversion H.
+  rewrite satisfy_limp.
+  rewrite satisfy_limp.
+  apply iff_split_imp.
+  apply IHp1. reflexivity.
+  apply IHp2. reflexivity.
+- simpl in H.
+  destruct (Nat.eq_dec x v).
+  inversion H.
+  destruct (in_dec Nat.eq_dec v (evar e)).
+  inversion H.
+  destruct (asubheap p x e).
+  inversion H.
+  simpl.
+  apply iff_split_exists; intro.
+  assert (s x = (store_update s v x0) x). {
+    unfold store_update. destruct (Nat.eq_dec v x).
+    exfalso. apply n. symmetry. assumption. reflexivity. }
+  assert (eval e s = eval e (store_update s v x0)). {
+    apply econd. intro; intro. unfold store_update.
+    destruct (Nat.eq_dec v x1). rewrite <- e0 in H2.
+    exfalso. apply n0. assumption. reflexivity. }
+  rewrite H0. rewrite H2.
+  apply IHp. reflexivity.
+  inversion H.
+- simpl in H.
+  destruct (Nat.eq_dec x v).
+  inversion H.
+  destruct (in_dec Nat.eq_dec v (evar e)).
+  inversion H.
+  destruct (asubheap p x e).
+  all: inversion H.
+  simpl.
+  apply iff_split_forall; intro.
+  assert (s x = (store_update s v x0) x). {
+    unfold store_update. destruct (Nat.eq_dec v x).
+    exfalso. apply n. symmetry. assumption. reflexivity. }
+  assert (eval e s = eval e (store_update s v x0)). {
+    apply econd. intro; intro. unfold store_update.
+    destruct (Nat.eq_dec v x1). rewrite <- e0 in H2.
+    exfalso. apply n0. assumption. reflexivity. }
+  rewrite H0. rewrite H2.
+  apply IHp. reflexivity.
+- simpl in H.
+  destruct (asubheap p1 x e). 2: inversion H.
+  destruct (asubheap p2 x e). 2: inversion H.
+  inversion H. clear H H1.
+  rewrite satisfy_lor.
+  split; intro.
+  + destruct H.
+    all: rewrite satisfy_sand in H.
+    all: destruct H as (h1 & h2 & H & H0 & H1).
+    1: rewrite satisfy_land in H1; destruct H1.
+    2: rewrite satisfy_land in H0; destruct H0.
+    all: rewrite satisfy_lnot in H2.
+    all: rewrite satisfy_hasvaldash in H2.
+    all: simpl.
+    exists (heap_update h1 (s x) (eval e s)).
+    exists h2. split.
+    apply partition_heap_update; assumption.
+    split. apply -> IHp1. apply H0. reflexivity. assumption.
+    exists h1.
+    exists (heap_update h2 (s x) (eval e s)).
+    split.
+    apply partition_comm.
+    apply partition_heap_update.
+    apply partition_comm. assumption. assumption.
+    split. assumption.
+    apply -> IHp2. apply H1. reflexivity.
+  + rewrite satisfy_sand in H.
+    destruct H as (h1 & h2 & H & H0 & H1).
+    pose proof (heap_update_partition_split _ _ _ _ _ H).
+    destruct H2.
+    * destruct H2 as (h1' & H' & h1eq).
+      left. apply satisfy_sand.
+      exists h1'. exists h2. split. assumption.
+      split. apply IHp1. reflexivity.
+      rewrite <- h1eq. assumption.
+      apply satisfy_land. split. assumption.
+      apply satisfy_lnot. intro.
+      apply satisfy_hasvaldash in H2.
+      destruct H. destruct H. destruct H.
+      destruct H5. specialize (H5 (s x)).
+      apply H5. constructor. rewrite h1eq.
+      rewrite heap_update_dom. right. constructor.
+      assumption.
+    * destruct H2 as (h2' & H' & h2eq).
+      right. apply satisfy_sand.
+      exists h1. exists h2'. split. assumption.
+      split. apply satisfy_land. split. assumption.
+      apply satisfy_lnot. intro.
+      apply satisfy_hasvaldash in H2.
+      destruct H. destruct H. destruct H.
+      destruct H5. specialize (H5 (s x)).
+      apply H5. constructor. assumption. rewrite h2eq.
+      rewrite heap_update_dom. right. constructor.
+      apply IHp2. reflexivity.
+      rewrite <- h2eq. assumption.
+- simpl in H.
+  destruct (asubheap p2 x e). 2: inversion H.
+  inversion H. clear ps H H1.
+  rewrite satisfy_simp.
+  rewrite satisfy_simp.
+  split; intros.
+  + assert (~dom h' (s x)). {
+      intro. unfold Partition in H0.
+      destruct H0. destruct H0. destruct H0.
+      rewrite heap_update_dom in H5.
+      rewrite disjoint_union_split in H5.
+      destruct H5.
+      rewrite disjoint_singleton in H6.
+      apply H6. apply H2. }
+    remember (fun y => if Z.eq_dec y (s x) then h y else h'' y).
+    specialize (H o h').
+    specialize (IHp2 o).
+    assert (h'' = heap_update o (s x) (eval e s)). {
+      apply functional_extensionality; intro.
+      unfold heap_update.
+      destruct (Z.eq_dec (s x) x0).
+      destruct H0. destruct H0. destruct H0.
+      rewrite H4. unfold heap_update.
+      destruct (Z.eq_dec (s x) x0). reflexivity.
+      exfalso. apply n. assumption.
+      unfold dom. rewrite e0. rewrite heap_update_lookup.
+      intro. inversion H6.
+      rewrite Heqo.
+      destruct (Z.eq_dec x0 (s x)).
+      exfalso. apply n. symmetry. assumption. reflexivity. }
+    rewrite H3. apply -> IHp2.
+    apply H.
+    split. split. split.
+    * intro. rewrite Heqo. unfold dom at 1. unfold Ensembles.In.
+      intro. destruct (Z.eq_dec x0 (s x)).
+      fold (dom h x0) in H4. left. assumption.
+      fold (dom h'' x0) in H4.
+      destruct H0. destruct H0. destruct H0.
+      specialize (H0 x0 H4). destruct H0.
+      rewrite heap_update_dom in H0.
+      destruct H0. left. assumption.
+      inversion H0. exfalso. apply n. rewrite H8. reflexivity.
+      right. assumption.
+    * constructor. intro. intro. destruct H4.
+      destruct H0. destruct H0. destruct H0.
+      destruct H8. specialize (H8 x0). apply H8.
+      constructor. 2: assumption.
+      rewrite heap_update_dom. left. assumption.
+    * intros. rewrite Heqo.
+      destruct (Z.eq_dec n (s x)). reflexivity.
+      destruct H0. destruct H0. destruct H0.
+      rewrite H6. unfold heap_update.
+      destruct (Z.eq_dec (s x) n). exfalso.
+      apply n0. symmetry. assumption. reflexivity.
+      rewrite heap_update_dom. left. assumption.
+    * intros. destruct H0. destruct H0. destruct H0.
+      rewrite <- H5; try assumption.
+      rewrite H3.
+      cut (n <> s x). { intro. unfold heap_update.
+        destruct (Z.eq_dec (s x) n). exfalso.
+        apply H8. rewrite e0. reflexivity. reflexivity. }
+      rewrite heap_update_dom in H7.
+      rewrite disjoint_union_split in H7. destruct H7.
+      apply disjoint_singleton in H8. intro.
+      rewrite H9 in H4. apply H8. assumption.
+    * apply satisfy_land. split.
+      assumption.
+      apply satisfy_lnot. intro.
+      apply satisfy_hasvaldash in H4. apply H2. assumption.
+    * reflexivity.
+  + rewrite satisfy_land in H1. destruct H1.
+    rewrite satisfy_lnot in H2.
+    rewrite satisfy_hasvaldash in H2.
+    specialize (H (heap_update h'' (s x) (eval e s)) h').
+    assert (Partition (heap_update h'' (s x) (eval e s))
+      (heap_update h (s x) (eval e s)) h'). {
+      destruct H0. destruct H0. destruct H0.
+      split. split. split.
+      repeat rewrite heap_update_dom.
+      apply included_union_split. split.
+      rewrite (@union_comm _ (dom h)).
+      rewrite union_assoc.
+      apply included_union_right_step.
+      assumption.
+      apply included_union_left_step.
+      apply included_union_right.
+      constructor. intro. intro. destruct H6.
+      rewrite heap_update_dom in H6. destruct H6.
+      destruct H5. apply H5 with (x := x0).
+      constructor; assumption.
+      unfold Ensembles.In in H6. inversion H6.
+      apply H2. rewrite H8. assumption.
+      intros. rewrite heap_update_dom in H6.
+      unfold heap_update. destruct (Z.eq_dec (s x) n).
+      reflexivity. destruct H6.
+      apply H4. assumption. inversion H6.
+      exfalso. apply n0. assumption.
+      intros. unfold heap_update.
+      destruct (Z.eq_dec (s x) n).
+      exfalso. apply H2. rewrite e0. assumption.
+      apply H3. assumption.
+    }
+    specialize (H H3 H1).
+    apply <- IHp2 in H. apply H. reflexivity.
+Qed.
+
+Corollary soundness_mutation (p: assert) (x: V) (e: expr):
+  forall ps, asubheap p x e = inleft ps ->
+    strong_partial_correct (land (hasvaldash x) ps) (mutation x e) p.
+intros.
+unfold strong_partial_correct.
+intros.
+rewrite satisfy_land in H0. destruct H0.
+rewrite satisfy_hasvaldash in H0.
+split.
+intro. inversion H2.
+apply H4. apply H0.
+intros. inversion H2.
+rewrite <- H9.
+pose proof (heap_substitution_lemma h s p x e ps H).
+apply H10. assumption.
+Qed.
+
+Corollary weakest_mutation (p q: assert) (x: V) (e: expr):
+  strong_partial_correct p (mutation x e) q ->
+    forall qs, asubheap q x e = inleft qs ->
+      validity (limp p (land (hasvaldash x) qs)).
+intros.
+unfold strong_partial_correct in H.
+unfold validity. intros.
+specialize (H h s).
+rewrite satisfy_limp. intro.
+specialize (H H1).
+destruct H.
+specialize (H2 (heap_update h (s x) (eval e s)) s).
+rewrite satisfy_land.
+assert (dom h (s x)).
+apply NNPP. intro.
+apply H. apply step_mutation_fail. assumption.
+split.
+rewrite satisfy_hasvaldash. assumption.
+pose proof (heap_substitution_lemma h s q x e qs H0).
+apply H4.
+apply H2.
+apply step_mutation. assumption.
+Qed.
+
+Proposition full_heap_problem (h: heap) (s: store) (x: V) (q: assert):
+  (forall z, dom h z) ->
+    satisfy h s (lforall x (limp (lnot (hasvaldash x)) q)).
+intros.
+rewrite satisfy_lforall; intro.
+rewrite satisfy_limp; intro.
+rewrite satisfy_lnot in H0.
+rewrite satisfy_hasvaldash in H0.
+rewrite store_update_lookup in H0.
+exfalso.
+apply H0. apply H.
+Qed.
+
+Corollary soundness_new (p: assert) (x: V) (e: expr):
+  ~In x (evar e) ->
+  forall ps, asubheap p x e = inleft ps ->
+    strong_partial_correct
+      (lforall x (limp (lnot (hasvaldash x)) ps)) (new x e) p.
+intros.
+unfold strong_partial_correct.
+intros.
+rewrite satisfy_lforall in H1.
+split.
+intro.
+inversion H2.
+intros.
+inversion H2.
+specialize (H1 n).
+rewrite satisfy_limp in H1.
+rewrite satisfy_lnot in H1.
+rewrite satisfy_hasvaldash in H1.
+rewrite store_update_lookup in H1.
+specialize (H1 H4).
+pose proof (heap_substitution_lemma h (store_update s x n)
+    p x e ps H0).
+apply H10 in H1.
+rewrite store_update_lookup in H1.
+assert (eval e s = eval e (store_update s x n)).
+apply econd. intro. intro. unfold store_update.
+destruct (Nat.eq_dec x x1). rewrite <- e1 in H11.
+exfalso. apply H. apply H11. reflexivity.
+rewrite <- H11 in H1. assumption.
+Qed.
+
+Corollary weakest_new (p q: assert) (x: V) (e: expr):
+  ~In x (evar e) -> strong_partial_correct p (new x e) q ->
+    forall qs, asubheap q x e = inleft qs ->
+      validity (limp p (lforall x (limp (lnot (hasvaldash x)) qs))).
+intros.
+unfold strong_partial_correct in H0.
+unfold validity. intros.
+specialize (H0 h s).
+rewrite satisfy_limp. intro.
+specialize (H0 H2).
+rewrite satisfy_lforall. intro.
+rewrite satisfy_limp. intro.
+rewrite satisfy_lnot in H3.
+rewrite satisfy_hasvaldash in H3.
+rewrite store_update_lookup in H3.
+destruct H0.
+specialize (H4 (heap_update h v (eval e s)) (store_update s x v)).
+pose proof (heap_substitution_lemma h (store_update s x v)
+    q x e qs H1).
+apply H5.
+rewrite store_update_lookup.
+assert (eval e s = eval e (store_update s x v)).
+apply econd. intro. intro. unfold store_update.
+destruct (Nat.eq_dec x x0). rewrite <- e0 in H6.
+exfalso. apply H. apply H6. reflexivity.
+rewrite <- H6. apply H4.
+apply step_new. assumption.
+Qed.
+
+Proposition new_simulates (p q: assert) (x z: V) (e: expr):
+  ~In z (avar p) -> ~In z (evar e) -> z <> x ->
+    strong_partial_correct p (new x e) q ->
+      strong_partial_correct p (comp (basic z x) (new x (esub e x z))) q.
+intros.
+intro h. intros. split.
+- intro.
+  inversion H4.
+  inversion H6.
+  inversion H10.
+- intros. unfold strong_partial_correct in H2.
+  rename h' into h''; rename s' into s''.
+  inversion H4.
+  clear dependent h0.
+  clear dependent s0.
+  clear dependent h''0.
+  clear dependent s''0.
+  clear H5 H6.
+  inversion H8.
+  clear dependent h0.
+  clear dependent s0.
+  clear dependent x0.
+  clear dependent e0.
+  rewrite <- H11 in *.
+  clear dependent h'.
+  rewrite <- H13 in *.
+  clear dependent s'.
+  pose proof (acond h p s (store_update s z (s x))).
+  rewrite H5 in H3. clear H5.
+  remember (esub e x z).
+  inversion H12.
+  clear dependent x0.
+  clear dependent e1.
+  clear dependent h0.
+  clear dependent s0.
+  rewrite H11.
+  rewrite <- H13 in *.
+  clear dependent s''.
+  specialize (H2 _ _ H3). destruct H2.
+  assert (eval e0 (store_update s z (s x)) =
+      eval e (store_update s z (s x))). {
+    rewrite Heqe0. simpl. rewrite store_update_lookup.
+    apply econd. intro. intro. unfold store_update at 1.
+    destruct (Nat.eq_dec x x0). 2: reflexivity.
+    unfold store_update.
+    destruct (Nat.eq_dec z x0). reflexivity.
+    rewrite e1. reflexivity.
+  }
+  rewrite H7 in H11.
+  rewrite <- H11 in *.
+  clear dependent h''.
+  apply H5.
+  constructor. assumption.
+  intro. intro.
+  unfold store_update.
+  destruct (Nat.eq_dec z x0).
+  rewrite <- e0 in H6. exfalso. apply H. assumption.
+  reflexivity.
+Qed.
+
+Proposition new_simulated (p q: assert) (x z: V) (e: expr):
+  ~In z (avar q) -> ~In z (evar e) -> z <> x ->
+    strong_partial_correct p (comp (basic z x) (new x (esub e x z))) q ->
+      strong_partial_correct p (new x e) q.
+intros.
+intro h. intros. split.
+- intro.
+  inversion H4.
+- intros.
+  unfold strong_partial_correct in H2.
+  inversion H4.
+  clear dependent x0.
+  clear dependent e0.
+  clear dependent h0.
+  clear dependent s0.
+  specialize (H2 h s H3). destruct H2.
+  eapply acond with
+    (t := store_update (store_update s z (eval x s)) x n).
+  intro. intro. unfold store_update.
+  destruct (Nat.eq_dec x x0). reflexivity.
+  destruct (Nat.eq_dec z x0). exfalso. apply H.
+  rewrite e0. assumption. reflexivity.
+  assert (eval e s = eval (esub e x z) (store_update s z (eval x s))).
+  simpl. apply econd. intro. intro. unfold store_update.
+  destruct (Nat.eq_dec x x0).
+  destruct (Nat.eq_dec z z). rewrite e0. reflexivity.
+  exfalso. apply n0. reflexivity.
+  destruct (Nat.eq_dec z x0).
+  exfalso. apply H0. rewrite e0. assumption. reflexivity.
+  rewrite H7.
+  apply H5.
+  eapply step_comp.
+  eapply step_basic.
+  apply step_new.
+  assumption.
+Qed.
+
+Proposition new_simulation (p q: assert) (x z: V) (e: expr):
+  ~In z (avar p) -> ~In z (avar q) -> ~In z (evar e) -> z <> x ->
+    strong_partial_correct p (comp (basic z x) (new x (esub e x z))) q <->
+    strong_partial_correct p (new x e) q.
+intros.
+split.
+apply new_simulated; assumption.
+apply new_simulates; assumption.
+Qed.
+
+Proposition soundness_comp (p q r: assert) (S1 S2: program):
+  strong_partial_correct p S1 r ->
+  strong_partial_correct r S2 q ->
+  strong_partial_correct p (comp S1 S2) q.
+intros.
+intro; intros.
+unfold strong_partial_correct in H.
+specialize (H h s H1). destruct H.
+split.
+intro. inversion H3. apply H. assumption.
+unfold strong_partial_correct in H0.
+specialize (H2 h' s' H7).
+specialize (H0 h' s' H2). destruct H0.
+apply H0. assumption.
+intros.
+unfold strong_partial_correct in H0.
+rename h' into h''. rename s' into s''.
+inversion H3.
+specialize (H2 h' s' H7).
+specialize (H0 h' s' H2). destruct H0.
+specialize (H12 h'' s'' H11). assumption.
+Qed.
+
+Proposition soundness_conseq (p p' q q': assert) (S: program):
+  strong_partial_correct p S q ->
+    validity (limp p' p) -> validity (limp q q') ->
+      strong_partial_correct p' S q'.
+intros.
+unfold strong_partial_correct in *.
+unfold validity in *.
+intros.
+specialize (H0 h s).
+rewrite satisfy_limp in H0.
+specialize (H0 H2).
+specialize (H h s H0). destruct H.
+split.
+apply H.
+intros.
+specialize (H1 h' s').
+rewrite satisfy_limp in H1.
+apply H1.
+apply H3.
+assumption.
+Qed.
