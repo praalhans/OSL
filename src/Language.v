@@ -4,8 +4,6 @@
 (* Author: Hans-Dieter A. Hiep *)
 
 From Coq Require Import ZArith.
-From Coq Require Import Setoid.
-From Coq Require Import Morphisms.
 From Coq Require Import FunctionalExtensionality.
 From Coq Require Import ProofIrrelevance.
 From Coq Require Import Ensembles.

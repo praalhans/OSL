@@ -1,4 +1,5 @@
 -Q src OnSeparationLogic
+src/Heap.v
 src/Language.v
 src/Classical.v
 src/Intuitionistic.v
