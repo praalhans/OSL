@@ -210,12 +210,53 @@ Fixpoint assoclist_dom (xs: assoclist): list Z :=
   | (k, v) :: xs => k :: assoclist_dom xs
   end.
 
+Proposition assoclist_dom_minkey (xs: assoclist) (k: Z):
+  minkey k xs -> ~ In k (assoclist_dom xs).
+intro. induction xs.
+intro. inversion H0.
+destruct a as (k', v'). simpl. intro.
+simpl in H; destruct H. destruct H0.
+rewrite H0 in H. 
+eapply Z.lt_irrefl. apply H.
+apply IHxs; assumption.
+Qed.
+
+Proposition assoclist_dom_NoDup (xs: assoclist):
+  heap_prop xs -> NoDup (assoclist_dom xs).
+intro. induction xs. left.
+destruct a as (k, v).
+simpl. inversion H. right.
+apply assoclist_dom_minkey; assumption.
+apply IHxs. assumption.
+Qed.
+
 Proposition assoclist_dom_sorted (xs: assoclist):
   heap_prop xs -> Sorted Z.lt (assoclist_dom xs).
-Abort.
+intro. induction xs; simpl. left.
+destruct a as (k, v). inversion H.
+right. apply IHxs; assumption.
+destruct xs. left.
+simpl. destruct p as (k', v').
+right. simpl in H2. destruct H2. assumption.
+Qed.
 
-(*Definition heap_dom (h: heap): Ensemble Z :=
-  fun k => In *)
+Definition heap_dom (h: heap): Ensemble Z :=
+  let xs := proj1_sig h in
+  fun k => In k (assoclist_dom xs).
+
+Proposition heap_dom_spec: forall h k, heap_dom h k <-> hfun h k <> None.
+intros. destruct h as (xs & H); unfold heap_dom; unfold hfun; simpl.
+induction xs. simpl.
+split; intro; try inversion H0; apply H0; reflexivity.
+inversion H.
+simpl. destruct (Z.eq_dec k k0).
+split; intro. intro. inversion H5.
+left. symmetry. assumption.
+split; intro. destruct H4.
+exfalso. apply n. symmetry; assumption.
+apply IHxs; assumption.
+right. apply IHxs; assumption.
+Qed.
 
 Lemma heap_ind: forall (P : heap -> Prop),
   P heap_empty ->
@@ -245,23 +286,49 @@ Qed.
 
 Lemma heap_ext: forall (h g: heap),
   (forall n, hfun h n = hfun g n) -> h = g.
-intros.
-induction g using heap_ind.
-- induction h using heap_ind.
+intros h g.
+destruct h as (xs & H).
+destruct g as (ys & G).
+unfold hfun. simpl. intro.
+cut (xs = ys); [intro|].
+generalize dependent H; rewrite H1; intros.
+assert (G = H). apply proof_irrelevance. rewrite H2. reflexivity.
+induction xs.
+- induction ys.
   + reflexivity.
-  + pose proof (H k); clear H.
-    rewrite heap_empty_spec in H1.
-    rewrite heap_update_spec1 in H1.
-    inversion H1.
-- generalize dependent k. generalize dependent v.
-  generalize dependent g. induction h using heap_ind; intros.
-  + pose proof (H k); clear H.
-    rewrite heap_empty_spec in H1.
-    rewrite heap_update_spec1 in H1.
-    inversion H1.
-  + destruct (Z.eq_dec k k0).
-    destruct (Z.eq_dec v v0).
-    rewrite <- e in *; rewrite <- e0 in *; clear e; clear e0.
+  + destruct a as (k, v).
+    specialize H0 with k. simpl in H0.
+    destruct (Z.eq_dec k k).
+    inversion H0. exfalso. apply n. reflexivity.
+- generalize dependent xs. generalize dependent a. induction ys; intros.
+  + destruct a as (k, v).
+    specialize H0 with k. simpl in H0.
+    destruct (Z.eq_dec k k).
+    inversion H0. exfalso. apply n. reflexivity.
+  + (*
+    * destruct (Z.eq_dec k k').
+      destruct (Z.eq_dec v v').
+      { rewrite e in *; rewrite e0 in *; clear e e0 k v.
+        f_equal.
+        destruct xs. reflexivity.
+        destruct p as (k, v).
+        specialize H0 with k.
+        simpl in H0.
+        destruct (Z.eq_dec k k').
+        inversion H. simpl in H3. destruct H3. rewrite e in H3.
+        exfalso. eapply Z.lt_irrefl. apply H3.
+        destruct (Z.eq_dec k k).
+        inversion H0. exfalso. apply n0. reflexivity. }
+      { rewrite e in *; clear e k.
+        specialize H0 with k'. simpl in H0.
+        destruct (Z.eq_dec k' k'). inversion H0.
+        exfalso. apply n. assumption. exfalso. apply n0. reflexivity. }
+      { specialize H0 with k; simpl in H0.
+        destruct (Z.eq_dec k k).
+        destruct (Z.eq_dec k k').
+        exfalso; apply n; assumption.
+        inversion H0.
+        exfalso; apply n0; reflexivity. } *)
 Abort.
 
 End FHeap.
