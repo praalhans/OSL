@@ -29,6 +29,12 @@ Axiom heap_update_spec1: forall h k v, hfun (heap_update h k v) k = Some v.
 Axiom heap_update_spec2: forall h k v k',
   k <> k' -> hfun (heap_update h k v) k' = hfun h k'.
 
+(* Heap clear *)
+Parameter heap_clear: heap -> Z -> heap.
+Axiom heap_clear_spec1: forall h k, hfun (heap_clear h k) k = None.
+Axiom heap_clear_spec2: forall h k k',
+  k <> k' -> hfun (heap_clear h k) k' = hfun h k'.
+
 (* Domain of heap *)
 Parameter heap_dom: heap -> Ensemble Z.
 Axiom heap_dom_spec: forall h k, heap_dom h k <-> hfun h k <> None.
@@ -38,9 +44,13 @@ Axiom heap_ext: forall (h g: heap),
   (forall n, hfun h n = hfun g n) -> h = g.
 
 (* Two heaps may be merged into one (partial operation). *)
-Parameter merge: heap -> heap -> option heap.
+(* Parameter merge: heap -> heap -> option heap. *)
 
 End HeapSig.
+
+Module HeapFacts (Import H: HeapSig).
+
+End HeapFacts.
 
 (* Possibly infinite heaps *)
 
@@ -181,6 +191,73 @@ induction xs; simpl.
     apply IHxs. assumption.
 Qed.
 
+Fixpoint clear (xs: assoclist) (k: Z): assoclist :=
+  match xs with
+  | nil => nil
+  | (k', v') :: xs => match k ?= k' with
+    | Lt => (k', v') :: clear xs k (* <- may be just xs *)
+    | Eq => clear xs k             (* <- if we assume heap_prop *)
+    | Gt => (k', v') :: clear xs k
+    end
+  end.
+
+Proposition clear_minkey (xs: assoclist) (k k': Z):
+  minkey k' xs -> minkey k' (clear xs k).
+intro. induction xs; simpl; auto.
+destruct a as (k0, v0).
+simpl in H; destruct H.
+remember (k ?= k0); destruct c; symmetry in Heqc; simpl.
+apply IHxs; assumption.
+split; try assumption. apply IHxs; assumption.
+split; try assumption. apply IHxs; assumption.
+Qed.
+
+Proposition clear_lookup_same (xs: assoclist) (k: Z):
+  lookup (clear xs k) k = None.
+induction xs; simpl. reflexivity.
+destruct a as (k', v').
+remember (k ?= k'); destruct c; symmetry in Heqc; simpl.
+assumption.
+1: apply -> Z.compare_lt_iff in Heqc.
+2: apply Z.compare_gt_iff in Heqc.
+all: destruct (Z.eq_dec k k').
+1,3: exfalso; eapply Z.lt_irrefl.
+1,2: rewrite e in Heqc; apply Heqc.
+all: assumption.
+Qed.
+Proposition clear_lookup_diff (xs: assoclist) (k k': Z):
+  k <> k' -> lookup (clear xs k) k' = lookup xs k'.
+intros; induction xs; simpl; auto.
+destruct a as (k0, v0).
+remember (k ?= k0); destruct c; symmetry in Heqc; simpl.
+{ apply Z.compare_eq_iff in Heqc.
+  rewrite IHxs.
+  destruct (Z.eq_dec k' k0).
+  exfalso. apply H. rewrite e. apply Heqc.
+  reflexivity. }
+1: apply -> Z.compare_lt_iff in Heqc.
+2: apply Z.compare_gt_iff in Heqc.
+all: destruct (Z.eq_dec k' k0); try reflexivity.
+all: assumption.
+Qed.
+
+Proposition clear_heap_prop (xs: assoclist) (k: Z):
+  heap_prop xs -> heap_prop (clear xs k).
+intro. induction xs; simpl.
+- apply empty.
+- destruct a as (k', v').
+  remember (k ?= k'); destruct c; symmetry in Heqc.
+  + inversion H. apply IHxs; assumption.
+  + inversion H. apply insert.
+    apply clear_minkey. assumption.
+    apply IHxs. assumption.
+  + apply Z.compare_gt_iff in Heqc.
+    inversion H; clear H0 H1 H3 k0 v xs0.
+    pose proof (IHxs H4); clear IHxs.
+    apply insert; try assumption.
+    apply clear_minkey. assumption.
+Qed.
+
 Definition heap := {xs: assoclist | heap_prop xs}.
 Definition hfun (h: heap) := lookup (proj1_sig h).
 
@@ -202,6 +279,20 @@ Proposition heap_update_spec2: forall h k v k',
   k <> k' -> hfun (heap_update h k v) k' = hfun h k'.
 intros. unfold hfun; unfold heap_update; simpl.
 apply update_lookup_diff. assumption.
+Qed.
+
+Definition heap_clear (h: heap) (k: Z): heap :=
+  let xs := proj1_sig h in
+  exist heap_prop (clear xs k) (clear_heap_prop xs k (proj2_sig h)).
+Proposition heap_clear_spec1: forall h k,
+  hfun (heap_clear h k) k = None.
+intros. unfold hfun; unfold heap_clear; simpl.
+apply clear_lookup_same.
+Qed.
+Proposition heap_clear_spec2: forall h k k',
+  k <> k' -> hfun (heap_clear h k) k' = hfun h k'.
+intros. unfold hfun; unfold heap_clear; simpl.
+apply clear_lookup_diff; assumption.
 Qed.
 
 Fixpoint assoclist_dom (xs: assoclist): list Z :=
@@ -293,42 +384,66 @@ unfold hfun. simpl. intro.
 cut (xs = ys); [intro|].
 generalize dependent H; rewrite H1; intros.
 assert (G = H). apply proof_irrelevance. rewrite H2. reflexivity.
-induction xs.
-- induction ys.
-  + reflexivity.
-  + destruct a as (k, v).
-    specialize H0 with k. simpl in H0.
+generalize dependent ys. induction xs; intros.
+- destruct ys.
+  reflexivity.
+  destruct p as (k, v).
+  specialize H0 with k; simpl in H0.
+  destruct (Z.eq_dec k k).
+  inversion H0. exfalso. apply n. reflexivity.
+- destruct ys.
+  destruct a as (k, v).
+  specialize H0 with k. simpl in H0.
+  destruct (Z.eq_dec k k).
+  inversion H0. exfalso. apply n. reflexivity.
+  destruct a as (k, v).
+  destruct p as (k', v').
+  destruct (Z.eq_dec k' k).
+  destruct (Z.eq_dec v' v).
+  { rewrite e in *; rewrite e0 in *; clear e e0 k' v'.
+    f_equal.
+    inversion H; clear H1 H2 H4 k0 v0 xs0.
+    inversion G; clear H1 H2 H6 k0 v0 xs0.
+    apply IHxs; try assumption.
+    intro.
+    specialize H0 with n; simpl in H0.
+    destruct (Z.eq_dec n k).
+    rewrite lookup_minkey.
+    rewrite lookup_minkey.
+    reflexivity.
+    1,2: rewrite e; assumption.
+    assumption. }
+  { rewrite e in *; clear e k'.
+    specialize H0 with k; simpl in H0.
+    destruct (Z.eq_dec k k). inversion H0.
+    exfalso. apply n. symmetry; assumption.
+    exfalso. apply n0. reflexivity. }
+  { exfalso. pose proof (H0 k).
+    pose proof (H0 k').
+    clear H0. simpl in H1, H2.
     destruct (Z.eq_dec k k).
-    inversion H0. exfalso. apply n. reflexivity.
-- generalize dependent xs. generalize dependent a. induction ys; intros.
-  + destruct a as (k, v).
-    specialize H0 with k. simpl in H0.
-    destruct (Z.eq_dec k k).
-    inversion H0. exfalso. apply n. reflexivity.
-  + (*
-    * destruct (Z.eq_dec k k').
-      destruct (Z.eq_dec v v').
-      { rewrite e in *; rewrite e0 in *; clear e e0 k v.
-        f_equal.
-        destruct xs. reflexivity.
-        destruct p as (k, v).
-        specialize H0 with k.
-        simpl in H0.
-        destruct (Z.eq_dec k k').
-        inversion H. simpl in H3. destruct H3. rewrite e in H3.
-        exfalso. eapply Z.lt_irrefl. apply H3.
-        destruct (Z.eq_dec k k).
-        inversion H0. exfalso. apply n0. reflexivity. }
-      { rewrite e in *; clear e k.
-        specialize H0 with k'. simpl in H0.
-        destruct (Z.eq_dec k' k'). inversion H0.
-        exfalso. apply n. assumption. exfalso. apply n0. reflexivity. }
-      { specialize H0 with k; simpl in H0.
-        destruct (Z.eq_dec k k).
-        destruct (Z.eq_dec k k').
-        exfalso; apply n; assumption.
-        inversion H0.
-        exfalso; apply n0; reflexivity. } *)
-Abort.
+    destruct (Z.eq_dec k k').
+    apply n; symmetry; assumption.
+    destruct (Z.eq_dec k' k).
+    apply n; assumption.
+    destruct (Z.eq_dec k' k').
+    2: apply n2; reflexivity.
+    2: apply n0; reflexivity.
+    clear e n0 n1 e0.
+    inversion H; clear H0 H3 H5 k0 v0 xs0.
+    inversion G; clear H0 H3 H7 k0 v0 xs0.
+    assert (k' < k \/ k < k').
+    { destruct (Z.lt_ge_cases k' k).
+      left; assumption.
+      right. apply Zle_lt_or_eq in H0. destruct H0.
+      assumption. exfalso. apply n; symmetry; assumption. }
+    destruct H0.
+    + pose proof (minkey_trans k' k xs H0 H4).
+      pose proof (lookup_minkey xs k' H3).
+      rewrite H7 in H2. inversion H2.
+    + pose proof (minkey_trans k k' ys H0 H5).
+      pose proof (lookup_minkey ys k H3).
+      rewrite H7 in H1. inversion H1. }
+Qed.
 
 End FHeap.
