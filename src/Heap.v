@@ -3,13 +3,13 @@
 (* ON SEPERATION LOGIC *)
 (* Author: Hans-Dieter A. Hiep *)
 
-From Coq Require Import FunctionalExtensionality.
-From Coq Require Import PropExtensionality.
-From Coq Require Import Structures.Orders.
-From Coq Require Import Ensembles.
-From Coq Require Import List.
-From Coq Require Import Sorting.
-From Coq Require Import ZArith.
+Require Import FunctionalExtensionality.
+Require Import PropExtensionality.
+Require Import Structures.Orders.
+Require Import Ensembles.
+Require Import List.
+Require Import Sorting.
+Require Import ZArith.
 
 Local Open Scope Z_scope.
 
@@ -48,7 +48,7 @@ Axiom heap_ext: forall (h g: heap),
 
 End HeapSig.
 
-Module HeapFacts (Import H: HeapSig).
+Module HeapFacts (Import HS: HeapSig).
 
 End HeapFacts.
 
