@@ -5,7 +5,6 @@
 
 Require Import FunctionalExtensionality.
 Require Import PropExtensionality.
-Require Import Ensembles.
 Require Import List.
 Require Import ZArith.
 
@@ -14,7 +13,7 @@ Require Import OnSeparationLogic.Heap.
 Module Language (Export HS: HeapSig).
 
 Module H := HeapFacts HS.
-Export H.
+Include H.
 
 Definition V := nat.
 Definition dummy: V := 0.
@@ -93,6 +92,22 @@ Definition store := V -> Z.
 
 Definition store_update (s: store) (x: V) (v: Z): store :=
   fun y => if Nat.eq_dec x y then v else s y.
+
+Proposition store_update_lookup_same (s: store) (x: V) (v: Z):
+  store_update s x v x = v.
+unfold store_update.
+destruct (Nat.eq_dec x x).
+reflexivity.
+exfalso. apply n. reflexivity.
+Qed.
+
+Proposition store_update_lookup_diff (s: store) (x x': V) (v: Z):
+  x <> x' -> store_update s x v x' = s x'.
+intros. unfold store_update.
+destruct (Nat.eq_dec x x').
+exfalso. apply H; assumption.
+reflexivity.
+Qed.
 
 Definition eq_restr (s t: store) (z: list V): Prop :=
   forall (x: V), In x z -> s x = t x.
@@ -176,15 +191,15 @@ Inductive assert :=
 | test: guard -> assert
 | hasval: expr -> expr -> assert
 | land: assert -> assert -> assert
+| lor: assert -> assert -> assert
 | limp: assert -> assert -> assert
+| lexists: V -> assert -> assert
 | lforall: V -> assert -> assert
 | sand: assert -> assert -> assert
 | simp: assert -> assert -> assert.
 Coercion test: guard >-> assert.
 
 Definition lnot (p: assert): assert := (limp p false).
-Definition lor (p q: assert): assert := lnot (land (lnot p) (lnot q)).
-Definition lexists (x: V) (p: assert): assert := lnot (lforall x (lnot p)).
 Definition hasvaldash (e: expr): assert :=
   let y := fresh (evar e) in lexists y (hasval e y).
 Definition emp: assert := (lforall dummy (lnot (hasvaldash dummy))).
@@ -196,6 +211,49 @@ Definition hasval_alt (e e': expr): assert :=
   sand (pointsto e e') true.
 Definition hasvaldash_alt (e: expr): assert :=
   sand (pointstodash e) true.
+
+Variant assignment :=
+| basic: V -> expr -> assignment
+| lookup: V -> expr -> assignment
+| mutation: V -> expr -> assignment
+| new: V -> expr -> assignment.
+(* TODO: dispose *)
+
+Inductive program :=
+| assign: assignment -> program
+| comp: program -> program -> program.
+Coercion assign: assignment >-> program.
+
+Inductive bigstep: program -> heap * store -> option (heap * store) -> Prop :=
+| step_basic (x: V) (e: expr) (h: heap) (s: store):
+    bigstep (basic x e) (h, s) (Some (h, store_update s x (eval e s)))
+| step_lookup (x: V) (e: expr) (h: heap) (s: store) (v: Z):
+    h (eval e s) = Some v ->
+    bigstep (lookup x e) (h, s) (Some (h, store_update s x v))
+| step_lookup_fail (x: V) (e: expr) (h: heap) (s: store) (v: Z):
+    h (eval e s) = None ->
+    bigstep (lookup x e) (h, s) None
+| step_mutation (x: V) (e: expr) (h: heap) (s: store):
+    dom h (s x) ->
+    bigstep (mutation x e) (h, s) (Some (heap_update h (s x) (eval e s), s))
+| step_mutation_fail (x: V) (e: expr) (h: heap) (s: store):
+    ~dom h (s x) ->
+    bigstep (mutation x e) (h, s) None
+| step_new (x: V) (e: expr) (h: heap) (s: store) (n: Z):
+    ~(dom h n) ->
+    bigstep (new x e) (h, s)
+      (Some (heap_update h n (eval e s), store_update s x n))
+| step_comp (S1 S2: program) (h h' h'': heap) (s s' s'': store):
+    bigstep S1 (h, s) (Some (h', s')) ->
+    bigstep S2 (h', s') (Some (h'', s'')) ->
+    bigstep (comp S1 S2) (h, s) (Some (h'', s''))
+| step_comp_fail1 (S1 S2: program) (h: heap) (s: store):
+    bigstep S1 (h, s) None ->
+    bigstep (comp S1 S2) (h, s) None
+| step_comp_fail2 (S1 S2: program) (h h': heap) (s s': store):
+    bigstep S1 (h, s) (Some (h', s')) ->
+    bigstep S2 (h', s') None ->
+    bigstep (comp S1 S2) (h, s) None.
 
 End Language.
 

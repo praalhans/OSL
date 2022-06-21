@@ -6,12 +6,17 @@
 Require Import FunctionalExtensionality.
 Require Import PropExtensionality.
 Require Import Structures.Orders.
-Require Import Ensembles.
 Require Import List.
 Require Import Sorting.
 Require Import ZArith.
 
 Local Open Scope Z_scope.
+
+Definition option_dec {T: Type} (o: option T): {exists x, o = Some x} + {o = None} :=
+  match o return ({exists x : T, o = Some x} + {o = None}) with
+  | Some t => left (ex_intro (fun x : T => Some t = Some x) t eq_refl)
+  | None => right eq_refl
+  end.
 
 Module Type HeapSig.
 
@@ -35,28 +40,189 @@ Axiom heap_clear_spec1: forall h k, hfun (heap_clear h k) k = None.
 Axiom heap_clear_spec2: forall h k k',
   k <> k' -> hfun (heap_clear h k) k' = hfun h k'.
 
-(* Domain of heap *)
-Parameter heap_dom: heap -> Ensemble Z.
-Axiom heap_dom_spec: forall h k, heap_dom h k <-> hfun h k <> None.
-
 (* We have extensional equality for heaps. *)
 Axiom heap_ext: forall (h g: heap),
   (forall n, hfun h n = hfun g n) -> h = g.
 
-(* Two heaps may be merged into one (partial operation). *)
-(* Parameter merge: heap -> heap -> option heap. *)
+(* Domain of heap *)
+Parameter dom: heap -> Z -> Prop.
+Axiom dom_spec: forall h k, dom h k <-> hfun h k <> None.
+
+(* When a heap can be partitioned in two heaps. *)
+Parameter Partition: heap -> heap -> heap -> Prop.
+Axiom Partition_spec1: forall h h1 h2, Partition h h1 h2 -> forall k, dom h1 k -> hfun h k = hfun h1 k.
+Axiom Partition_spec2: forall h h1 h2, Partition h h1 h2 -> forall k, dom h2 k -> hfun h k = hfun h2 k.
+Axiom Partition_spec3: forall h h1 h2, Partition h h1 h2 -> forall k, ~dom h1 k -> ~dom h2 k -> hfun h k = None.
+Axiom Partition_spec4: forall h h1 h2, Partition h h1 h2 -> forall k, ~(dom h1 k /\ dom h2 k).
+Axiom Partition_intro: forall h1 h2, (forall k, ~(dom h1 k /\ dom h2 k)) -> exists h, Partition h h1 h2.
 
 End HeapSig.
 
+Module Type HasStablePartition (Import HS: HeapSig).
+
+Axiom Partition_stable: forall h h1 h2, ~~Partition h h1 h2 -> Partition h h1 h2.
+
+End HasStablePartition.
+
+Module Type DecHeapSig := HeapSig <+ HasStablePartition.
+
 Module HeapFacts (Import HS: HeapSig).
+
+Coercion hfun: heap >-> Funclass.
+
+Definition SomeZ (n: Z): option Z := Some n.
+Coercion SomeZ: Z >-> option.
+
+Proposition dom_dec (h: heap) (x: Z): dom h x \/ ~dom h x.
+rewrite dom_spec.
+destruct (h x).
+left; intro; inversion H.
+right; intro; apply H; reflexivity.
+Qed.
+
+Proposition Partition_lunique (h h' h1 h2: heap):
+  Partition h h1 h2 /\ Partition h' h1 h2 -> h = h'.
+intro; destruct H.
+apply heap_ext; intro.
+pose proof (dom_dec h1 n); destruct H1;
+  [|pose proof (dom_dec h2 n); destruct H2].
+(* Case analysis: *)
+- rewrite (Partition_spec1 _ _ _ H); try assumption.
+  rewrite (Partition_spec1 _ _ _ H0); try assumption.
+  reflexivity.
+- rewrite (Partition_spec2 _ _ _ H); try assumption.
+  rewrite (Partition_spec2 _ _ _ H0); try assumption.
+  reflexivity.
+- rewrite (Partition_spec3 _ _ _ H); try assumption.
+  rewrite (Partition_spec3 _ _ _ H0); try assumption.
+  reflexivity.
+Qed.
+
+Proposition Partition_comm (h h1 h2: heap):
+  Partition h h1 h2 -> Partition h h2 h1.
+intro.
+destruct (Partition_intro h2 h1).
+intros; rewrite and_comm; eapply Partition_spec4; apply H.
+cut (h = x). intro. rewrite H1. assumption.
+apply heap_ext; intro.
+pose proof (dom_dec h1 n); destruct H1;
+  [|pose proof (dom_dec h2 n); destruct H2].
+(* Case analysis: *)
+- rewrite (Partition_spec1 _ _ _ H); try assumption.
+  rewrite (Partition_spec2 _ _ _ H0); try assumption.
+  reflexivity.
+- rewrite (Partition_spec2 _ _ _ H); try assumption.
+  rewrite (Partition_spec1 _ _ _ H0); try assumption.
+  reflexivity.
+- rewrite (Partition_spec3 _ _ _ H); try assumption.
+  rewrite (Partition_spec3 _ _ _ H0); try assumption.
+  reflexivity.
+Qed.
 
 End HeapFacts.
 
+(* ======================= *)
 (* Possibly infinite heaps *)
+(* ======================= *)
 
+Module IHeap <: HeapSig.
+
+Definition heap := Z -> option Z.
+Definition hfun (h: heap) := h.
+
+Definition heap_empty: heap := fun k => None.
+Proposition heap_empty_spec: forall n, hfun heap_empty n = None.
+unfold hfun; unfold heap_empty; intro; reflexivity.
+Qed.
+
+Definition heap_update (h: heap) (k v: Z): heap :=
+  fun n => if Z.eq_dec k n then Some v else h n.
+Proposition heap_update_spec1: forall h k v, hfun (heap_update h k v) k = Some v.
+unfold hfun; unfold heap_update; intros.
+destruct (Z.eq_dec k k). reflexivity. exfalso; apply n; reflexivity.
+Qed.
+Proposition heap_update_spec2: forall h k v k',
+  k <> k' -> hfun (heap_update h k v) k' = hfun h k'.
+unfold hfun; unfold heap_update; intros.
+destruct (Z.eq_dec k k'). exfalso; apply H; assumption. reflexivity.
+Qed.
+
+Definition heap_clear (h: heap) (k: Z): heap :=
+  fun n => if Z.eq_dec k n then None else h n.
+Proposition heap_clear_spec1: forall h k, hfun (heap_clear h k) k = None.
+unfold hfun; unfold heap_clear; intros.
+destruct (Z.eq_dec k k). reflexivity. exfalso; apply n; reflexivity.
+Qed.
+Proposition heap_clear_spec2: forall h k k',
+  k <> k' -> hfun (heap_clear h k) k' = hfun h k'.
+unfold hfun; unfold heap_clear; intros.
+destruct (Z.eq_dec k k'). exfalso; apply H; assumption. reflexivity.
+Qed.
+
+Proposition heap_ext: forall (h g: heap),
+  (forall n, hfun h n = hfun g n) -> h = g.
+unfold hfun; intros; apply functional_extensionality; apply H.
+Qed.
+
+Definition dom (h: heap) (k: Z): Prop := h k <> None.
+Proposition dom_spec: forall h k, dom h k <-> hfun h k <> None.
+unfold hfun; unfold dom; intros; apply iff_refl.
+Qed.
+
+(* When a heap can be partitioned in two heaps. *)
+Definition Partition (h h1 h2: heap): Prop :=
+  (forall k, (dom h k -> dom h1 k \/ dom h2 k)) /\
+  (forall k, ~(dom h1 k /\ dom h2 k)) /\
+  (forall k, dom h1 k -> h k = h1 k) /\
+  (forall k, dom h2 k -> h k = h2 k).
+
+Proposition Partition_spec1: forall h h1 h2, Partition h h1 h2 -> forall k, dom h1 k -> hfun h k = hfun h1 k.
+unfold Partition; intros; destruct H as (H & (H1 & (H2 & H3))).
+apply H2; assumption.
+Qed.
+
+Proposition Partition_spec2: forall h h1 h2, Partition h h1 h2 -> forall k, dom h2 k -> hfun h k = hfun h2 k.
+unfold Partition; intros; destruct H as (H & (H1 & (H2 & H3))).
+apply H3; assumption.
+Qed.
+
+Proposition Partition_spec3: forall h h1 h2, Partition h h1 h2 -> forall k, ~dom h1 k -> ~dom h2 k -> hfun h k = None.
+unfold Partition; intros; destruct H as (H & (H2 & (H3 & H4))).
+remember (h k); destruct o; try reflexivity.
+exfalso.
+assert (dom h k); unfold dom. intro. rewrite H5 in Heqo. inversion Heqo.
+pose proof (H _ H5). destruct H6.
+apply H0; assumption.
+apply H1; assumption.
+unfold hfun; symmetry; assumption.
+Qed.
+
+Proposition Partition_spec4: forall h h1 h2, Partition h h1 h2 -> forall k, ~(dom h1 k /\ dom h2 k).
+unfold Partition; intros; destruct H as (H & (H1 & (H2 & H3))).
+apply H1.
+Qed.
+
+Proposition Partition_intro: forall h1 h2, (forall k, ~(dom h1 k /\ dom h2 k)) -> exists h, Partition h h1 h2.
+intros.
+exists (fun n => if option_dec (h1 n) then h1 n else h2 n).
+unfold Partition; split; [|split; [|split]]; intros.
+- unfold dom in *. destruct (option_dec (h1 k)). left; assumption. right; assumption.
+- apply H.
+- destruct (option_dec (h1 k)). reflexivity.
+  exfalso. unfold dom in H0. apply H0; assumption.
+- destruct (option_dec (h1 k)).
+  destruct e. exfalso. eapply H. split; [|apply H0].
+  unfold dom; intro. rewrite H1 in H2. inversion H2.
+  reflexivity.
+Qed.
+
+End IHeap.
+
+(* ==================== *)
 (* Finitely-based heaps *)
+(* ==================== *)
 
-Module FHeap <: HeapSig.
+Module FHeap <: DecHeapSig.
 
 Definition assoclist := list (Z * Z).
 
@@ -331,12 +497,12 @@ simpl. destruct p as (k', v').
 right. simpl in H2. destruct H2. assumption.
 Qed.
 
-Definition heap_dom (h: heap): Ensemble Z :=
+Definition dom (h: heap): Z -> Prop :=
   let xs := proj1_sig h in
   fun k => In k (assoclist_dom xs).
 
-Proposition heap_dom_spec: forall h k, heap_dom h k <-> hfun h k <> None.
-intros. destruct h as (xs & H); unfold heap_dom; unfold hfun; simpl.
+Proposition dom_spec: forall h k, dom h k <-> hfun h k <> None.
+intros. destruct h as (xs & H); unfold dom; unfold hfun; simpl.
 induction xs. simpl.
 split; intro; try inversion H0; apply H0; reflexivity.
 inversion H.
@@ -445,5 +611,15 @@ generalize dependent ys. induction xs; intros.
       pose proof (lookup_minkey ys k H3).
       rewrite H7 in H1. inversion H1. }
 Qed.
+
+(* TODO *)
+Parameter Partition: heap -> heap -> heap -> Prop.
+Axiom Partition_spec1: forall h h1 h2, Partition h h1 h2 -> forall k, dom h1 k -> hfun h k = hfun h1 k.
+Axiom Partition_spec2: forall h h1 h2, Partition h h1 h2 -> forall k, dom h2 k -> hfun h k = hfun h2 k.
+Axiom Partition_spec3: forall h h1 h2, Partition h h1 h2 -> forall k, ~dom h1 k -> ~dom h2 k -> hfun h k = None.
+Axiom Partition_spec4: forall h h1 h2, Partition h h1 h2 -> forall k, ~(dom h1 k /\ dom h2 k).
+Axiom Partition_intro: forall h1 h2, (forall k, ~(dom h1 k /\ dom h2 k)) -> exists h, Partition h h1 h2.
+
+Axiom Partition_stable: forall h h1 h2, ~~Partition h h1 h2 -> Partition h h1 h2.
 
 End FHeap.
