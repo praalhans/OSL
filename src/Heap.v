@@ -3,20 +3,9 @@
 (* ON SEPERATION LOGIC *)
 (* Author: Hans-Dieter A. Hiep *)
 
-Require Import FunctionalExtensionality.
-Require Import PropExtensionality.
-Require Import Structures.Orders.
-Require Import List.
-Require Import Sorting.
-Require Import ZArith.
+Require Export OnSeparationLogic.Util.
 
 Local Open Scope Z_scope.
-
-Definition option_dec {T: Type} (o: option T): {exists x, o = Some x} + {o = None} :=
-  match o return ({exists x : T, o = Some x} + {o = None}) with
-  | Some t => left (ex_intro (fun x : T => Some t = Some x) t eq_refl)
-  | None => right eq_refl
-  end.
 
 Module Type HeapSig.
 
@@ -70,8 +59,8 @@ Module HeapFacts (Import HS: HeapSig).
 
 Coercion hfun: heap >-> Funclass.
 
-Definition SomeZ (n: Z): option Z := Some n.
-Coercion SomeZ: Z >-> option.
+Definition Some_Z (n: Z): option Z := Some n.
+Coercion Some_Z: Z >-> option.
 
 Proposition dom_dec (h: heap) (x: Z): dom h x \/ ~dom h x.
 rewrite dom_spec.

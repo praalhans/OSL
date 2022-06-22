@@ -3,13 +3,7 @@
 (* ON SEPERATION LOGIC *)
 (* Author: Hans-Dieter A. Hiep *)
 
-Require Import FunctionalExtensionality.
-Require Import PropExtensionality.
-Require Import List.
-Require Import ZArith.
-
-Require Import OnSeparationLogic.Heap.
-Require Import OnSeparationLogic.Language.
+Require Export OnSeparationLogic.Language.
 
 Module Classical (Export HS: HeapSig).
 
@@ -153,6 +147,62 @@ split; intro.
   rewrite store_update_lookup_same.
   split; auto.
   eapply dom_spec. apply H. symmetry; assumption.
+Qed.
+
+Proposition acond (h: heap) (p: assert):
+  forall (s t: store), eq_restr s t (avar p) ->
+    (satisfy h s p <-> satisfy h t p).
+generalize dependent h; induction p; intros; try tauto; simpl in *.
+erewrite (gcond g); [|apply H]; apply iff_refl.
+1,2,3,4: apply eq_restr_split in H; destruct H as (H0 & H1).
+2,3,4: specialize IHp1 with h s t; specialize IHp2 with h s t; tauto.
+pose proof (econd e s t) as G; rewrite G; try tauto;
+pose proof (econd e0 s t) as I; rewrite I; tauto.
+- apply not_iff_compat.
+  apply forall_iff_compat; intro.
+  split; intro.
+  1: apply <- IHp.
+  3: apply -> IHp.
+  1,3: apply H0.
+  1,2: intro; intro; unfold store_update.
+  1,2: destruct (Nat.eq_dec v x0); try reflexivity.
+  1,2: symmetry; apply H; apply In_remove; assumption.
+- split; intros; specialize H0 with v0.
+  1: apply <- IHp.
+  3: apply -> IHp.
+  1,3: apply H0.
+  1,2: intro; intro; unfold store_update.
+  1,2: destruct (Nat.eq_dec v x); try reflexivity.
+  1,2: symmetry; apply H; apply In_remove; assumption.
+- apply eq_restr_split in H; destruct H as (H & HH).
+  apply not_iff_compat.
+  apply forall2_iff_compat; intro.
+  split; intros.
+  1,2: destruct H0; destruct H1; split; [|split]; try assumption.
+  specialize IHp1 with x s t.
+  apply IHp1; assumption.
+  specialize IHp2 with y s t.
+  apply IHp2; assumption.
+  specialize IHp1 with x t s.
+  apply IHp1; try assumption.
+  apply eq_restr_comm; assumption.
+  specialize IHp2 with y t s.
+  apply IHp2; try assumption.
+  apply eq_restr_comm; assumption.
+- apply eq_restr_split in H; destruct H as (H & HH).
+  split; intros.
+  1,2: specialize H0 with h'' h'.
+  1,2: specialize (H0 H1).
+  apply <- IHp1 in H2.
+  specialize (H0 H2).
+  apply -> IHp2 in H0.
+  apply H0.
+  1,2: assumption.
+  apply -> IHp1 in H2.
+  specialize (H0 H2).
+  apply <- IHp2 in H0.
+  apply H0.
+  1,2: assumption.
 Qed.
 
 Definition validity (p: assert): Prop := forall h s, satisfy h s p.
