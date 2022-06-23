@@ -86,3 +86,62 @@ intros; specialize H0 with x y; intro;
 apply H0; apply H; assumption.
 Qed.
 
+Proposition iff_split_and (A B C D: Prop):
+  (A <-> C) -> (B <-> D) -> ((A /\ B) <-> (C /\ D)).
+intros; split; intros (H1&H2); split.
+1,3: apply H; assumption.
+all: apply H0; assumption.
+Qed.
+Proposition iff_split_or (A B C D: Prop):
+  (A <-> C) -> (B <-> D) -> ((A \/ B) <-> (C \/ D)).
+intros; split; intros H1; destruct H1.
+1,3: apply H in H1; left; apply H1.
+all: apply H0 in H1; right; apply H1.
+Qed.
+Proposition iff_split_not_and_not (A B C D: Prop):
+  (A <-> C) -> (B <-> D) -> (~(~A /\ ~B) <-> ~(~C /\ ~D)).
+intros; split; intros; intro; apply H1; split; intro; destruct H2; tauto.
+Qed.
+Proposition iff_split_imp (A B C D: Prop):
+  (A <-> C) -> (B <-> D) -> ((A -> B) <-> (C -> D)).
+intros. split; intros H1 H2.
+all: apply H0; apply H1; apply H; assumption.
+Qed.
+Proposition iff_split_and_exists {T: Type}
+    (A B C D: T -> Prop) (H: T -> T -> Prop):
+  (forall x, (A x <-> C x)) -> (forall y, (B y <-> D y)) ->
+    ((exists x y, H x y /\ A x /\ B y) <->
+     (exists x y, H x y /\ C x /\ D y)).
+intros; split; intros; destruct H2; destruct H2;
+  exists x; exists x0; destruct H2; destruct H3;
+  split; try assumption; split.
+1,3: apply H0; assumption.
+all: apply H1; assumption.
+Qed.
+Proposition iff_split_imp_forall {T: Type}
+    (A B C D: T -> Prop) (H: T -> T -> Prop):
+  (forall x, (A x <-> C x)) -> (forall x, (B x <-> D x)) ->
+    ((forall x y, H x y -> A y -> B x) <->
+     (forall x y, H x y -> C y -> D x)).
+intros; split; intros;
+apply H2 in H3.
+1,3: apply H1; assumption.
+all: apply H0; assumption.
+Qed.
+Proposition iff_split_exists {T: Type} (A B: T -> Prop):
+  (forall x, (A x <-> B x)) -> ((exists x, A x) <-> (exists x, B x)).
+intro; split; intro; destruct H0; exists x; apply H; assumption.
+Qed.
+Proposition iff_split_not_forall_not {T: Type} (A B: T -> Prop):
+  (forall x, (A x <-> B x)) -> (~(forall x, ~A x) <-> ~(forall x, ~B x)).
+intro; split; intro; intro; apply H0; intro; intro; apply H in H2; eapply H1; apply H2.
+Qed.
+Proposition iff_split_forall {T: Type} (A B: T -> Prop):
+  (forall x, (A x <-> B x)) -> ((forall x, A x) <-> (forall x, B x)).
+intro; split; intros; apply H; apply H0.
+Qed.
+Proposition iff_split_forall2 {T: Type} (A B: T -> T -> Prop):
+  (forall x y, (A x y <-> B x y)) ->
+  ((forall x y, A x y) <-> (forall x y, B x y)).
+intro; split; intros; apply H; apply H0.
+Qed.

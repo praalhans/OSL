@@ -113,6 +113,24 @@ rewrite e; reflexivity.
 reflexivity.
 Qed.
 
+Proposition store_update_collapse (s: store) (x: V) (v w: Z):
+  (store_update (store_update s x v) x w) =
+  (store_update s x w).
+apply functional_extensionality; intro z.
+unfold store_update.
+destruct (Nat.eq_dec x z); reflexivity.
+Qed.
+
+Proposition store_update_swap (s: store) (e: Z) (x y: V) (v: Z):
+  x <> y ->
+  (store_update (store_update s x e) y v) =
+  (store_update (store_update s y v) x e).
+intros G; apply functional_extensionality; intro z.
+unfold store_update.
+destruct (Nat.eq_dec y z); destruct (Nat.eq_dec x z); try reflexivity.
+exfalso. apply G. rewrite e0; rewrite e1. reflexivity.
+Qed.
+
 Definition eq_restr (s t: store) (z: list V): Prop :=
   forall (x: V), In x z -> s x = t x.
 
@@ -262,6 +280,17 @@ apply in_app_or in H0; destruct H0.
 eapply remove_In; apply H0.
 inversion H0. apply H; symmetry; assumption.
 inversion H1.
+Qed.
+
+Proposition gval_gsub_fresh (s: store) (g: guard) (e: expr):
+  gval (gsub g (fresh (gvar g)) e) s = gval g s.
+destruct g; simpl in *.
+apply gcond0. intro. intro.
+unfold store_update.
+destruct (Nat.eq_dec (fresh gvar0) x).
+rewrite <- e0 in H.
+exfalso. eapply fresh_notIn; apply H.
+reflexivity.
 Qed.
 
 Proposition guard_eq (g1 g2: guard):

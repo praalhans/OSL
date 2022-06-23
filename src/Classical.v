@@ -232,10 +232,91 @@ Qed.
 (* Weakest precondition axiomatization (WP-CSL) *)
 (* ============================================ *)
 
+Proposition satisfy_asub_fresh (h: heap) (s: store) (p ps: assert) (e: expr):
+  asub p (fresh (avar p)) e = Some ps ->
+  satisfy h s ps <-> satisfy h s p.
+intro. induction p.
+simpl in H; inversion H; simpl.
+Check gval_gsub_fresh.
+Abort.
+
 Lemma store_substitution_lemma (h: heap) (s: store) (p: assert) (x: V) (e: expr):
   forall ps, asub p x e = Some ps ->
     (satisfy h s ps <-> satisfy h (store_update s x (e s)) p).
-Abort.
+generalize dependent s; generalize dependent h; generalize dependent x; induction p; intros;
+try (simpl in H; inversion H; unfold satisfy; apply iff_refl; fail).
+- simpl in H.
+  apply option_app_elim in H; destruct H; destruct H.
+  apply option_app_elim in H0; destruct H0; destruct H0.
+  inversion H1.
+  simpl; apply iff_split_and.
+  apply IHp1; assumption.
+  apply IHp2; assumption.
+- simpl in H.
+  apply option_app_elim in H; destruct H; destruct H.
+  apply option_app_elim in H0; destruct H0; destruct H0.
+  inversion H1.
+  simpl; apply iff_split_not_and_not.
+  apply IHp1; assumption.
+  apply IHp2; assumption.
+- simpl in H.
+  apply option_app_elim in H; destruct H; destruct H.
+  apply option_app_elim in H0; destruct H0; destruct H0.
+  inversion H1.
+  simpl; apply iff_split_imp.
+  apply IHp1; assumption.
+  apply IHp2; assumption.
+- simpl in H.
+  destruct (in_dec Nat.eq_dec v (evar e)). inversion H.
+  apply option_app_elim in H; destruct H; destruct H.
+  inversion H0; clear H0 H2.
+  simpl.
+  apply iff_split_not_forall_not.
+  destruct (Nat.eq_dec x v); intro.
+  rewrite e0.
+  rewrite store_update_collapse.
+  (* TODO *) 
+  rewrite store_update_swap.
+- simpl in H. destruct (Nat.eq_dec x v).
+  + inversion H. simpl. split; intros.
+    rewrite e0. rewrite store_update_collapse. apply H0.
+    rewrite e0 in H0. specialize H0 with v0.
+    rewrite store_update_collapse in H0. assumption.
+  + destruct (in_dec Nat.eq_dec v (evar e));
+      [|destruct (asub p x e)].
+    all: inversion H.
+    simpl; split; intros.
+    * rewrite store_update_swap.
+      (* Coincidence condition *)
+      assert (eval e s = eval e (store_update s v v0)). {
+        apply econd; intro; intro. unfold store_update.
+        destruct (Nat.eq_dec v x0).
+        exfalso. rewrite e0 in n0. apply n0; assumption.
+        reflexivity. }
+      rewrite H2. apply -> (IHp h (store_update s v v0)).
+      apply H0. reflexivity. assumption.
+    * specialize H0 with v0. rewrite store_update_swap in H0.
+      (* Coincidence condition *)
+      assert (eval e s = eval e (store_update s v v0)). {
+        apply econd; intro; intro. unfold store_update.
+        destruct (Nat.eq_dec v x0).
+        exfalso. rewrite e0 in n0. apply n0; assumption.
+        reflexivity. }
+      rewrite H2 in H0. apply <- (IHp h (store_update s v v0)).
+      assumption. reflexivity. assumption.
+- simpl in H; destruct (asub p1 x e); [destruct (asub p2 x e)|].
+  all: inversion H.
+  simpl.
+  apply iff_split_and_exists; intro hh.
+  apply IHp1; reflexivity.
+  apply IHp2; reflexivity.
+- simpl in H; destruct (asub p1 x e); [destruct (asub p2 x e)|].
+  all: inversion H.
+  simpl.
+  apply iff_split_imp_forall; intro hh.
+  apply IHp1; reflexivity.
+  apply IHp2; reflexivity.
+Qed.
 
 Corollary WPCSL_soundness_basic (p: assert) (x: V) (e: expr):
   forall ps, asub p x e = Some ps ->
