@@ -185,6 +185,16 @@ exfalso. apply H. rewrite e0. assumption.
 reflexivity.
 Qed.
 
+Proposition esub_notInVar (e: expr) (x y: V):
+  x <> y -> ~ In x (evar (esub e x y)).
+intros; simpl; intro.
+apply in_app_or in H0; destruct H0.
+eapply remove_In; apply H0.
+inversion H0.
+apply H; symmetry; assumption.
+inversion H1.
+Qed.
+
 Proposition expr_eq (e1 e2: expr):
   (eval e1 = eval e2) -> (evar e1 = evar e2) -> e1 = e2.
 intros. destruct e1. destruct e2.
@@ -244,6 +254,15 @@ Qed.
 Definition gsub (g: guard) (x: V) (e: expr): guard :=
   mkguard (fun s => gval g (store_update s x (eval e s)))
     (remove Nat.eq_dec x (gvar g) ++ evar e) (gsub_cond g x e).
+
+Proposition gsub_notInVar (g: guard) (x y:V):
+  x <> y -> ~In x (gvar (gsub g x y)).
+intros; simpl; intro.
+apply in_app_or in H0; destruct H0.
+eapply remove_In; apply H0.
+inversion H0. apply H; symmetry; assumption.
+inversion H1.
+Qed.
 
 Proposition guard_eq (g1 g2: guard):
   (gval g1 = gval g2) -> (gvar g1 = gvar g2) -> g1 = g2.
@@ -306,6 +325,60 @@ Fixpoint avar (p: assert): list V :=
   end.
 
 Definition aoccur (p: assert): list V := abound p ++ avar p.
+
+Local Ltac aoccur_generic_bin := intros; unfold aoccur; split; intro H;
+match goal with
+| H: _ |- _ => apply in_app_or in H; simpl in H; destruct H; apply in_app_or in H; destruct H;
+    try (apply in_or_app; left; apply in_or_app; auto; fail);
+    try (apply in_or_app; right; apply in_or_app; auto; fail)
+end.
+
+Proposition aoccur_split_land (p1 p2: assert):
+  forall x, In x (aoccur (land p1 p2)) <-> In x (aoccur p1 ++ aoccur p2).
+aoccur_generic_bin.
+Qed.
+
+Proposition aoccur_split_lor (p1 p2: assert):
+  forall x, In x (aoccur (lor p1 p2)) <-> In x (aoccur p1 ++ aoccur p2).
+aoccur_generic_bin.
+Qed.
+
+Proposition aoccur_split_limp (p1 p2: assert):
+  forall x, In x (aoccur (limp p1 p2)) <-> In x (aoccur p1 ++ aoccur p2).
+aoccur_generic_bin.
+Qed.
+
+Local Ltac aoccur_generic_quan := intros; simpl; split; intro;
+match goal with
+| H: ?x = ?y \/ _ |- _ => destruct H; auto; apply in_app_or in H; destruct H;
+    try (right; apply in_or_app; auto; fail);
+    destruct (Nat.eq_dec x y); auto;
+    right; apply in_or_app; right;
+    try (apply In_remove; assumption; fail);
+    match goal with
+     | n: x <> y |- _ => eapply In_remove_elim; [apply n | apply H]
+    end
+end.
+
+Proposition aoccur_split_lexists (x: V) (p: assert):
+  forall y, In y (aoccur (lexists x p)) <-> In y (x :: aoccur p).
+aoccur_generic_quan.
+Qed.
+
+Proposition aoccur_split_lforall (x: V) (p: assert):
+  forall y, In y (aoccur (lforall x p)) <-> In y (x :: aoccur p).
+aoccur_generic_quan.
+Qed.
+
+Proposition aoccur_split_sand (p1 p2: assert):
+  forall x, In x (aoccur (sand p1 p2)) <-> In x (aoccur p1 ++ aoccur p2).
+aoccur_generic_bin.
+Qed.
+
+Proposition aoccur_split_simp (p1 p2: assert):
+  forall x, In x (aoccur (simp p1 p2)) <-> In x (aoccur p1 ++ aoccur p2).
+aoccur_generic_bin.
+Qed.
 
 Definition Some_assert (p: assert): option assert := Some p.
 Coercion Some_assert: assert >-> option.
@@ -392,6 +465,88 @@ generalize dependent x; induction p; intro x; simpl;
   exists (test (gsub g x e)); reflexivity.
 - split; intros; auto.
   exists (hasval (esub e0 x e) (esub e1 x e)); reflexivity.
+Qed.
+
+Fixpoint areplace (p: assert) (x y: V): assert :=
+  match p with
+  | test g => test (gsub g x y)
+  | hasval e1 e2 => hasval (esub e1 x y) (esub e2 x y)
+  | land p q => land (areplace p x y) (areplace q x y)
+  | lor p q => lor (areplace p x y) (areplace q x y)
+  | limp p q => limp (areplace p x y) (areplace q x y)
+  | lexists z p => if Nat.eq_dec x z
+      then lexists y (areplace p x y)
+      else lexists z (areplace p x y)
+  | lforall z p => if Nat.eq_dec x z
+      then lforall y (areplace p x y)
+      else lforall z (areplace p x y)
+  | sand p q => sand (areplace p x y) (areplace q x y)
+  | simp p q => simp (areplace p x y) (areplace q x y)
+  end.
+
+Proposition areplace_no_occur (p: assert) (x y: V):
+  x <> y -> ~In y (aoccur p) -> ~In x (aoccur (areplace p x y)).
+intros; induction p; simpl;
+try (((rewrite aoccur_split_land in H0;
+       rewrite aoccur_split_land) +
+      (rewrite aoccur_split_lor in H0;
+       rewrite aoccur_split_lor) +
+      (rewrite aoccur_split_limp in H0;
+       rewrite aoccur_split_limp) +
+      (rewrite aoccur_split_sand in H0;
+       rewrite aoccur_split_sand) +
+      (rewrite aoccur_split_simp in H0;
+       rewrite aoccur_split_simp));
+  apply not_In_split;
+  apply not_In_split in H0; tauto; fail).
+- intro; apply in_app_or in H1; destruct H1.
+  unfold abound in H1. inversion H1.
+  apply (gsub_notInVar _ _ _ H H1).
+- unfold aoccur in *; unfold abound in *; unfold avar in *.
+  intro.
+  apply in_app_or in H1; destruct H1.
+  inversion H1.
+  apply in_app_or in H1; destruct H1.
+  apply (esub_notInVar _ _ _ H H1).
+  apply (esub_notInVar _ _ _ H H1).
+- destruct (Nat.eq_dec x v).
+  + simpl; intro; destruct H1.
+    apply H; auto.
+    apply in_app_or in H1; destruct H1.
+    * apply IHp. intro. rewrite aoccur_split_lexists in H0. apply H0.
+      right. assumption.
+      apply in_or_app; auto.
+    * apply IHp. intro. rewrite aoccur_split_lexists in H0. apply H0.
+      right. assumption.
+      apply in_or_app; auto.
+      apply In_remove_elim in H1.
+      auto. apply Nat.neq_sym; assumption.
+  + simpl. intro. destruct H1.
+    apply n; symmetry; apply H1.
+    apply in_app_or in H1; destruct H1.
+    2: apply In_remove_elim in H1.
+    3: apply Nat.neq_sym; assumption.
+    all: apply IHp; [intro; rewrite aoccur_split_lexists in H0;
+    apply H0; right; assumption | apply in_or_app; auto].
+- destruct (Nat.eq_dec x v).
+  + simpl; intro; destruct H1.
+    apply H; auto.
+    apply in_app_or in H1; destruct H1.
+    * apply IHp. intro. rewrite aoccur_split_lforall in H0. apply H0.
+      right. assumption.
+      apply in_or_app; auto.
+    * apply IHp. intro. rewrite aoccur_split_lforall in H0. apply H0.
+      right. assumption.
+      apply in_or_app; auto.
+      apply In_remove_elim in H1.
+      auto. apply Nat.neq_sym; assumption.
+  + simpl. intro. destruct H1.
+    apply n; symmetry; apply H1.
+    apply in_app_or in H1; destruct H1.
+    2: apply In_remove_elim in H1.
+    3: apply Nat.neq_sym; assumption.
+    all: apply IHp; [intro; rewrite aoccur_split_lforall in H0;
+    apply H0; right; assumption | apply in_or_app; auto].
 Qed.
 
 Variant assignment :=
