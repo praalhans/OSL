@@ -320,39 +320,79 @@ Fixpoint asub (p: assert) (x: V) (e: expr): option assert :=
       option_app (asub q x e) (fun qs => lor ps qs))
   | limp p q => option_app (asub p x e) (fun ps =>
       option_app (asub q x e) (fun qs => limp ps qs))
-  | lexists y p => if Nat.eq_dec x y then lexists y p else
-      if in_dec Nat.eq_dec y (evar e) then None
-      else option_app (asub p x e) (fun ps => lexists y ps)
-  | lforall y p => if Nat.eq_dec x y then lforall y p else
-      if in_dec Nat.eq_dec y (evar e) then None
-      else option_app (asub p x e) (fun ps => lforall y ps)
+  | lexists y p => if in_dec Nat.eq_dec y (evar e) then None else
+      option_app (asub p (if Nat.eq_dec x y then fresh (avar p) else x) e) (fun ps => lexists y ps)
+  | lforall y p => if in_dec Nat.eq_dec y (evar e) then None else
+      option_app (asub p (if Nat.eq_dec x y then fresh (avar p) else x) e) (fun ps => lforall y ps)
   | sand p q => option_app (asub p x e) (fun ps =>
       option_app (asub q x e) (fun qs => sand ps qs))
   | simp p q => option_app (asub p x e) (fun ps =>
       option_app (asub q x e) (fun qs => simp ps qs))
   end.
 
+Proposition asub_defined_step1 (C: assert -> assert -> assert) (p1 p2: assert) (x: V) (e: expr)
+    (IHp1: forall x : V, (forall x : V, In x (evar e) -> ~ In x (abound p1)) <-> (exists q : assert, asub p1 x e = Some q))
+    (IHp2: forall x : V, (forall x : V, In x (evar e) -> ~ In x (abound p2)) <-> (exists q : assert, asub p2 x e = Some q)):
+  (forall x0 : V, In x0 (evar e) -> ~ In x0 (abound p1 ++ abound p2)) <->
+  (exists q : assert, option_app (asub p1 x e) (fun ps : assert => option_app (asub p2 x e) (fun qs : assert => C ps qs)) = Some q).
+split; intros; specialize IHp1 with x; specialize IHp2 with x.
+- apply In_app_split in H; destruct H.
+  apply IHp1 in H; destruct H.
+  apply IHp2 in H0; destruct H0.
+  exists (C x0 x1); rewrite H; rewrite H0; reflexivity.
+- destruct H.
+  apply option_app_elim in H; destruct H; destruct H.
+  assert (exists q, asub p1 x e = Some q) by (exists x2; assumption).
+  apply option_app_elim in H1; destruct H1; destruct H1.
+  assert (exists q, asub p2 x e = Some q) by (exists x3; assumption).
+  apply not_In_split; split.
+  apply <- IHp1; assumption.
+  apply <- IHp2; assumption.
+Qed.
+
+Proposition asub_defined_step2 (Q: V -> assert -> assert) (p: assert) (x v: V) (e: expr)
+    (IHp: forall x : V, (forall x : V, In x (evar e) -> ~ In x (abound p)) <-> (exists q : assert, asub p x e = Some q)):
+  (forall x0 : V, In x0 (evar e) -> ~ (v = x0 \/ In x0 (abound p))) <->
+  (exists q : assert, (if in_dec Nat.eq_dec v (evar e) then None else
+    option_app (asub p (if Nat.eq_dec x v then fresh (avar p) else x) e) (fun ps : assert => Q v ps)) = Some q).
+split; intros.
+- assert (forall x : V, In x (evar e) -> ~ In x (abound p)) by
+    (intros; intro; eapply H; [apply H0 | auto]).
+  destruct (in_dec Nat.eq_dec v (evar e)).
+  specialize H with v.
+  apply H in i; exfalso; apply i; auto.
+  destruct (Nat.eq_dec x v).
+  specialize IHp with (fresh (avar p)).
+  apply IHp in H0; destruct H0.
+  exists (Q v x0); rewrite H0; reflexivity.
+  specialize IHp with x.
+  apply IHp in H0; destruct H0.
+  exists (Q v x0); rewrite H0; reflexivity.
+- intro; destruct H; destruct H1.
+  rewrite H1 in *; clear H1 v.
+  destruct (in_dec Nat.eq_dec x0 (evar e)).
+  inversion H.
+  apply n; assumption.
+  destruct (in_dec Nat.eq_dec v (evar e)).
+  inversion H.
+  apply option_app_elim in H; destruct H; destruct H.
+  destruct (Nat.eq_dec x v).
+  assert (exists q, asub p (fresh (avar p)) e = Some q) by (exists x2; assumption).
+  eapply IHp in H3; [apply H3; apply H1 | assumption].
+  assert (exists q, asub p x e = Some q) by (exists x2; assumption).
+  eapply IHp in H3; [apply H3; apply H1 | assumption].
+Qed.
+
 Proposition asub_defined (p: assert) (x: V) (e: expr):
   (forall x, In x (evar e) -> ~In x (abound p)) <-> exists q, asub p x e = Some q.
-induction p; simpl.
+generalize dependent x; induction p; intro x; simpl;
+  try (apply asub_defined_step1; assumption; fail);
+  try (apply asub_defined_step2; assumption; fail).
 - split; intros; auto.
   exists (test (gsub g x e)); reflexivity.
 - split; intros; auto.
   exists (hasval (esub e0 x e) (esub e1 x e)); reflexivity.
-- split; intros.
-  + apply In_app_split in H; destruct H.
-    apply IHp1 in H; destruct H.
-    apply IHp2 in H0; destruct H0.
-    exists (land x0 x1); rewrite H; rewrite H0; reflexivity.
-  + destruct H.
-    apply option_app_elim in H; destruct H; destruct H.
-    assert (exists q, asub p1 x e = Some q) by (exists x2; assumption).
-    apply option_app_elim in H1; destruct H1; destruct H1.
-    assert (exists q, asub p2 x e = Some q) by (exists x3; assumption).
-    apply not_In_split; split.
-    apply <- IHp1; assumption.
-    apply <- IHp2; assumption.
-Abort.
+Qed.
 
 Variant assignment :=
 | basic: V -> expr -> assignment
