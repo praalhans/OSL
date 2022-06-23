@@ -207,13 +207,13 @@ Qed.
 
 Definition validity (p: assert): Prop := forall h s, satisfy h s p.
 
-Definition strong_partial_correct (p: assert) (S: program) (q: assert) :=
+Definition strong_partial_correct: hoare -> Prop := fun '(mkhoare p S q) =>
   forall h s, satisfy h s p ->
     ~bigstep S (h, s) None /\
     forall h' s', bigstep S (h, s) (Some (h', s')) -> satisfy h' s' q.
 
 Example out_of_memory (x: V) (e: expr):
-  strong_partial_correct (lforall x (hasvaldash x)) (new x e) false.
+  strong_partial_correct (mkhoare (lforall x (hasvaldash x)) (new x e) false).
 unfold strong_partial_correct.
 intros.
 split.
@@ -226,6 +226,32 @@ specialize (H n).
 rewrite satisfy_hasvaldash in H.
 rewrite store_update_lookup_same in H.
 exfalso. apply H2. assumption.
+Qed.
+
+(* ============================================ *)
+(* Weakest precondition axiomatization (WP-CSL) *)
+(* ============================================ *)
+
+Lemma store_substitution_lemma (h: heap) (s: store) (p: assert) (x: V) (e: expr):
+  forall ps, asub p x e = Some ps ->
+    (satisfy h s ps <-> satisfy h (store_update s x (e s)) p).
+Abort.
+
+Corollary WPCSL_soundness_basic (p: assert) (x: V) (e: expr):
+  forall ps, asub p x e = Some ps ->
+    strong_partial_correct (mkhoare ps (basic x e) p).
+Admitted.
+
+Corollary WPCSL_soundness_lookup (p: assert) (x y: V) (e: expr):
+  ~ In y (x :: aoccur p ++ evar e) ->
+    forall ps, asub p x y = Some ps ->
+      strong_partial_correct (mkhoare (lexists y (land (sand (hasval e y) true) ps)) (lookup x e) p).
+Admitted.
+
+Theorem WPCSL_soundness: forall pSq, WPCSL pSq -> strong_partial_correct pSq.
+intros. induction H.
+apply WPCSL_soundness_basic; assumption.
+apply WPCSL_soundness_lookup; assumption.
 Qed.
 
 End Classical.

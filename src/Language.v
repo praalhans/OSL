@@ -443,6 +443,26 @@ Inductive bigstep: program -> heap * store -> option (heap * store) -> Prop :=
     bigstep S2 (h', s') None ->
     bigstep (comp S1 S2) (h, s) None.
 
+Inductive hoare :=
+| mkhoare: assert -> program -> assert -> hoare.
+
+Definition pre: hoare -> assert := fun '(mkhoare p _ _) => p.
+Definition S: hoare -> program := fun '(mkhoare _ x _) => x.
+Definition post: hoare -> assert := fun '(mkhoare _ _ q) => q.
+
+(* ============================================ *)
+(* Weakest precondition axiomatization (WP-CSL) *)
+(* ============================================ *)
+
+Inductive WPCSL: hoare -> Set :=
+| wpc_basic (p ps: assert) (x: V) (e: expr):
+    asub p x e = Some ps ->
+    WPCSL (mkhoare ps (basic x e) p)
+| wpc_lookup (p ps: assert) (x y: V) (e: expr):
+    ~In y (x :: aoccur p ++ evar e) ->
+    asub p x y = ps ->
+    WPCSL (mkhoare (lexists y (land (sand (hasval e y) true) ps)) (lookup x e) p).
+
 End Language.
 
 
