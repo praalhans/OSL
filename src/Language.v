@@ -223,24 +223,6 @@ apply H; symmetry; assumption.
 inversion H1.
 Qed.
 
-Proposition eval_esub_fresh_general (s: store) (e e': expr) (xs: list V):
-  (forall x, In x (evar e) -> In x xs) ->
-  eval (esub e (fresh xs) e') s = eval e s.
-intro; destruct e; simpl in *.
-apply econd0. intro. intro.
-unfold store_update.
-destruct (Nat.eq_dec (fresh xs) x).
-apply H in H0.
-rewrite <- e in H0.
-exfalso. eapply fresh_notIn; apply H0.
-reflexivity.
-Qed.
-
-Proposition eval_esub_fresh (s: store) (e e': expr):
-  eval (esub e (fresh (evar e)) e') s = eval e s.
-apply eval_esub_fresh_general. auto.
-Qed.
-
 Proposition expr_eq (e1 e2: expr):
   (eval e1 = eval e2) -> (evar e1 = evar e2) -> e1 = e2.
 intros. destruct e1. destruct e2.
@@ -308,23 +290,6 @@ apply in_app_or in H0; destruct H0.
 eapply remove_In; apply H0.
 inversion H0. apply H; symmetry; assumption.
 inversion H1.
-Qed.
-
-Proposition gval_gsub_fresh_general (s: store) (g: guard) (xs: list V) (e: expr):
-  (forall x, In x (gvar g) -> In x xs) -> gval (gsub g (fresh xs) e) s = gval g s.
-intro; destruct g; simpl in *.
-apply gcond0. intro. intro.
-unfold store_update.
-destruct (Nat.eq_dec (fresh xs) x).
-apply H in H0.
-rewrite <- e0 in H0.
-exfalso. eapply fresh_notIn; apply H0.
-reflexivity.
-Qed.
-
-Proposition gval_gsub_fresh (s: store) (g: guard) (e: expr):
-  gval (gsub g (fresh (gvar g)) e) s = gval g s.
-apply gval_gsub_fresh_general. auto.
 Qed.
 
 Proposition guard_eq (g1 g2: guard):

@@ -232,47 +232,20 @@ Qed.
 (* Weakest precondition axiomatization (WP-CSL) *)
 (* ============================================ *)
 
-Proposition satisfy_asub_fresh_general (h: heap) (s: store) (p ps: assert) (xs: list V) (e: expr):
-  (forall x, In x (avar p) -> In x xs) -> asub p (fresh xs) e = Some ps ->
+Proposition store_substitution_lemma_p1 (p: assert) (e: expr):
+  (forall (x: V) (h: heap) (s: store) (ps: assert),
+      asub p x e = Some ps -> satisfy h s ps <-> satisfy h (store_update s x (e s)) p) ->
+  forall (x: V) (h: heap) (s : store) (ps: assert),
+    ~In x (avar p) -> asub p x e = Some ps ->
     satisfy h s ps <-> satisfy h s p.
 intros.
-generalize dependent ps; generalize dependent s; generalize dependent h; induction p; intros.
-- inversion H0; clear H0.
-  unfold satisfy. rewrite gval_gsub_fresh_general.
-  apply iff_refl. assumption.
-- inversion H0; clear H0.
-  unfold satisfy.
-  rewrite eval_esub_fresh_general.
-  rewrite eval_esub_fresh_general.
-  apply iff_refl.
-  all: intros; apply H; simpl; apply in_or_app; auto.
-- inversion H0; clear H0.
-  apply option_app_elim in H2; destruct H2; destruct H0.
-  apply option_app_elim in H1; destruct H1; destruct H1.
-  inversion H2.
-  simpl; apply iff_split_and;
-  (apply IHp1 + apply IHp2); try assumption;
-  intros; apply H; simpl; apply in_or_app; auto.
-- inversion H0; clear H0.
-  apply option_app_elim in H2; destruct H2; destruct H0.
-  apply option_app_elim in H1; destruct H1; destruct H1.
-  inversion H2.
-  simpl; apply iff_split_not_and_not;
-  (apply IHp1 + apply IHp2); try assumption;
-  intros; apply H; simpl; apply in_or_app; auto.
-- inversion H0; clear H0.
-  apply option_app_elim in H2; destruct H2; destruct H0.
-  apply option_app_elim in H1; destruct H1; destruct H1.
-  inversion H2.
-  simpl; apply iff_split_imp;
-  (apply IHp1 + apply IHp2); try assumption;
-  intros; apply H; simpl; apply in_or_app; auto.
-- 
-Admitted.
-
-Proposition satisfy_asub_fresh (h: heap) (s: store) (p ps: assert) (e: expr):
-  asub p (fresh (avar p)) e = Some ps -> satisfy h s ps <-> satisfy h s p.
-apply satisfy_asub_fresh_general. auto.
+pose proof (acond h p s (store_update s x (e s))).
+rewrite H2. apply H. assumption.
+intro; intro.
+unfold store_update.
+destruct (Nat.eq_dec x x0).
+exfalso; apply H0. rewrite e0; assumption.
+reflexivity.
 Qed.
 
 Lemma store_substitution_lemma (h: heap) (s: store) (p: assert) (x: V) (e: expr):
@@ -307,7 +280,8 @@ try (inversion H; unfold satisfy; apply iff_refl; fail).
   destruct (Nat.eq_dec x v); intro.
   rewrite e0.
   rewrite store_update_collapse.
-  apply (satisfy_asub_fresh h (store_update s v x1) _ _ _ H).
+  eapply store_substitution_lemma_p1; [apply IHp| |apply H].
+  apply fresh_notIn.
   rewrite store_update_swap; try assumption.
   rewrite eval_store_update_notInVar with (e := e) (x := v) (v := x1); try assumption.
   apply IHp; assumption.
@@ -319,7 +293,8 @@ try (inversion H; unfold satisfy; apply iff_refl; fail).
   destruct (Nat.eq_dec x v); intro.
   rewrite e0.
   rewrite store_update_collapse.
-  apply (satisfy_asub_fresh h (store_update s v x1) _ _ _ H).
+  eapply store_substitution_lemma_p1; [apply IHp| |apply H].
+  apply fresh_notIn.
   rewrite store_update_swap; try assumption.
   rewrite eval_store_update_notInVar with (e := e) (x := v) (v := x1); try assumption.
   apply IHp; assumption.
