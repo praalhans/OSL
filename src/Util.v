@@ -118,6 +118,15 @@ intros; split; intros; destruct H2; destruct H2;
 1,3: apply H0; assumption.
 all: apply H1; assumption.
 Qed.
+Proposition iff_split_and_not_forall_not {T: Type}
+    (A B C D: T -> Prop) (H: T -> T -> Prop):
+  (forall x, (A x <-> C x)) -> (forall y, (B y <-> D y)) ->
+    (~(forall x y, ~(H x y /\ A x /\ B y)) <->
+     ~(forall x y, ~(H x y /\ C x /\ D y))).
+intros; split; intro; intro; apply H2; intros; intro.
+rewrite H0 in H4; rewrite H1 in H4; eapply H3; apply H4.
+rewrite <- H0 in H4; rewrite <- H1 in H4; eapply H3; apply H4.
+Qed.
 Proposition iff_split_imp_forall {T: Type}
     (A B C D: T -> Prop) (H: T -> T -> Prop):
   (forall x, (A x <-> C x)) -> (forall x, (B x <-> D x)) ->
