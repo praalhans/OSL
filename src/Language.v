@@ -577,6 +577,26 @@ try (((rewrite aoccur_split_land in H0;
     apply H0; right; assumption | apply in_or_app; auto].
 Qed.
 
+Fixpoint asubheapupd (p: assert) (x: V) (e: expr): option assert :=
+  match p with
+  | test g => test g
+  | hasval e1 e2 => (lor (land (equals x e1) (equals e e2)) (land (lnot (equals x e1)) (hasval e1 e2)))
+  | land p q => option_app (asubheapupd p x e) (fun ps =>
+      option_app (asubheapupd q x e) (fun qs => land ps qs))
+  | lor p q => option_app (asubheapupd p x e) (fun ps =>
+      option_app (asubheapupd q x e) (fun qs => lor ps qs))
+  | limp p q => option_app (asubheapupd p x e) (fun ps =>
+      option_app (asubheapupd q x e) (fun qs => limp ps qs))
+  | lexists y p => if in_dec Nat.eq_dec y (x :: evar e) then None else
+      option_app (asubheapupd p x e) (fun ps => lexists y ps)
+  | lforall y p => if in_dec Nat.eq_dec y (x :: evar e) then None else
+      option_app (asubheapupd p x e) (fun ps => lforall y ps)
+  | sand p q => option_app (asubheapupd p x e) (fun ps =>
+      option_app (asubheapupd q x e) (fun qs => lor (sand ps (land q (lnot (hasvaldash x))))
+        (sand (land p (lnot (hasvaldash x))) qs)))
+  | simp p q => option_app (asubheapupd q x e) (fun qs => simp (land p (lnot (hasvaldash x))) qs)
+  end.
+
 Variant assignment :=
 | basic: V -> expr -> assignment
 | lookup: V -> expr -> assignment
