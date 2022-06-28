@@ -10,6 +10,28 @@ Require Export List.
 Require Export Sorting.
 Require Export ZArith.
 
+Definition sublist_part_dec {T: Type} (dec: forall x y: T, {x = y} + {x <> y}) (xs: list T) (ys: list T):
+  {exists x, In x xs /\ In x ys} + {forall x, In x xs -> ~In x ys}.
+induction xs.
+right. intros. inversion H.
+destruct IHxs.
+- left.
+  destruct e as (x & H & H0).
+  exists x; split.
+  right; assumption.
+  assumption.
+- destruct (in_dec dec a ys).
+  left.
+  exists a; split.
+  left; reflexivity.
+  assumption.
+  right.
+  intros.
+  inversion H.
+  rewrite <- H0; assumption.
+  apply n; assumption.
+Defined.
+
 Definition option_dec {T: Type} (o: option T): {exists x, o = Some x} + {o = None} :=
   match o return ({exists x : T, o = Some x} + {o = None}) with
   | Some t => left (ex_intro (fun x : T => Some t = Some x) t eq_refl)

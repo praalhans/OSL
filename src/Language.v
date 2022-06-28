@@ -594,7 +594,7 @@ Fixpoint asubheapupd (p: assert) (x: V) (e: expr): option assert :=
   | sand p q => option_app (asubheapupd p x e) (fun ps =>
       option_app (asubheapupd q x e) (fun qs => lor (sand ps (land q (lnot (hasvaldash x))))
         (sand (land p (lnot (hasvaldash x))) qs)))
-  | simp p q => if in_dec Nat.eq_dec x (abound p) then None else
+  | simp p q => if sublist_part_dec Nat.eq_dec (x :: evar e) (abound p) then None else
       option_app (asubheapupd q x e) (fun qs => simp (land p (lnot (hasvaldash x))) qs)
   end.
 
@@ -669,18 +669,23 @@ try (apply asubheapupd_defined_step1; assumption; fail).
     apply In_app_split in H. destruct H.
     apply IHp2 in H0; destruct H0.
     exists (simp (land p1 (lnot (hasvaldash x))) x0).
-    simpl; rewrite H0; simpl.
-    destruct (in_dec Nat.eq_dec x (abound p1)).
-    exfalso; eapply H. left. reflexivity. assumption.
+    unfold asubheapupd. fold asubheapupd. rewrite H0.
+    destruct (sublist_part_dec Nat.eq_dec (x :: evar e) (abound p1)).
+    destruct e0 as (x1 & H1 & H2).
+    exfalso; eapply H. apply H1. apply H2.
     reflexivity.
   + destruct H.
     unfold asubheapupd in H; fold asubheapupd in H.
-    destruct (in_dec Nat.eq_dec x (abound p1)).
+    destruct (sublist_part_dec Nat.eq_dec (x :: evar e) (abound p1)).
     inversion H.
     apply option_app_elim in H; destruct H; destruct H.
     assert (exists q : assert, asubheapupd p2 x e = Some q) by
       (exists x1; assumption).
-Abort.
+    rewrite <- IHp2 in H2.
+    simpl. intro. apply in_app_or in H3; destruct H3.
+    eapply n. apply H0. apply H3.
+    eapply H2. apply H0. apply H3.
+Qed.
 
 Variant assignment :=
 | basic: V -> expr -> assignment
