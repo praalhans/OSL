@@ -687,6 +687,25 @@ try (apply asub_heap_update_defined_step1; assumption; fail).
     eapply H2. apply H0. apply H3.
 Qed.
 
+Fixpoint asub_heap_dispose (p: assert) (x: V) (e: expr): option assert :=
+  match p with
+  | test g => test g
+  | hasval e1 e2 => (land (lnot (equals x e1)) (hasval e1 e2))
+  | land p q => option_app (asub_heap_dispose p x e) (fun ps =>
+      option_app (asub_heap_dispose q x e) (fun qs => land ps qs))
+  | lor p q => option_app (asub_heap_dispose p x e) (fun ps =>
+      option_app (asub_heap_dispose q x e) (fun qs => lor ps qs))
+  | limp p q => option_app (asub_heap_dispose p x e) (fun ps =>
+      option_app (asub_heap_dispose q x e) (fun qs => limp ps qs))
+  | lexists y p => if in_dec Nat.eq_dec y (x :: evar e) then None else
+      option_app (asub_heap_dispose p x e) (fun ps => lexists y ps)
+  | lforall y p => if in_dec Nat.eq_dec y (x :: evar e) then None else
+      option_app (asub_heap_dispose p x e) (fun ps => lforall y ps)
+  | sand p q => option_app (asub_heap_update p x e) (fun ps =>
+      option_app (asub_heap_update q x e) (fun qs => sand ps qs))
+  | simp p q => (* TODO *) false
+  end.
+
 Variant assignment :=
 | basic: V -> expr -> assignment
 | lookup: V -> expr -> assignment
@@ -754,7 +773,14 @@ Inductive WPCSL: hoare -> Set :=
 | wpc_lookup (p ps: assert) (x y: V) (e: expr):
     ~In y (x :: aoccur p ++ evar e) ->
     asub p x y = ps ->
-    WPCSL (mkhoare (lexists y (land (sand (hasval e y) true) ps)) (lookup x e) p).
+    WPCSL (mkhoare (lexists y (land (sand (hasval e y) true) ps)) (lookup x e) p)
+| wpc_mutation (p ps: assert) (x: V) (e: expr):
+    asub_heap_update p x e = ps ->
+    WPCSL (mkhoare (land (hasvaldash x) ps) (mutation x e) p)
+| wpc_new (p ps: assert) (x: V) (e: expr):
+    ~In x (evar e) ->
+    asub_heap_update p x e = ps ->
+    WPCSL (mkhoare (lforall x (limp (lnot (hasvaldash x)) ps)) (new x e) p).
 
 End Language.
 

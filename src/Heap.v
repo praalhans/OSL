@@ -69,11 +69,25 @@ left; intro; inversion H.
 right; intro; apply H; reflexivity.
 Qed.
 
-Proposition heap_update_dom (h: heap) (k v: Z):
+Proposition heap_update_dom1 (h: heap) (k v: Z):
   dom (heap_update h k v) k.
 apply dom_spec.
 rewrite heap_update_spec1.
 intro. inversion H.
+Qed.
+
+Proposition heap_update_dom2 (h: heap) (k k' v: Z):
+  k <> k' -> dom (heap_update h k v) k' <-> dom h k'.
+intro.
+split; intro.
+rewrite dom_spec in H0.
+rewrite heap_update_spec2 in H0.
+rewrite dom_spec. assumption.
+assumption.
+rewrite dom_spec.
+rewrite heap_update_spec2.
+rewrite dom_spec in H0. assumption.
+assumption.
 Qed.
 
 Proposition Partition_lunique (h h' h1 h2: heap):

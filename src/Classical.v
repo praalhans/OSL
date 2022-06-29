@@ -99,6 +99,15 @@ intro. apply H0 in H3. apply H2; assumption.
 intro. apply H1 in H3. apply H2; assumption.
 Qed.
 
+Proposition satisfy_lor_elim_gen (h: heap) (s: store) (p q: assert) (P: Prop):
+  (~~P -> P) -> satisfy h s (lor p q) -> (satisfy h s p -> P) -> (satisfy h s q -> P) -> P.
+intros.
+apply H. intro.
+apply H0. fold satisfy. split.
+intro. apply H3. apply H1. assumption.
+intro. apply H3. apply H2. assumption.
+Qed.
+
 Proposition satisfy_p_lor_not_p (h: heap) (s: store) (p: assert):
   satisfy h s (lor p (lnot p)).
 simpl. intro. destruct H.
@@ -115,6 +124,17 @@ Proposition satisfy_equals (h: heap) (s: store) (e0 e1: expr):
 simpl. destruct (Z.eq_dec (eval e0 s) (eval e1 s)).
 rewrite e. tauto. split. intro. inversion H.
 intro. exfalso. apply n. assumption.
+Qed.
+
+Proposition satisfy_hasval (h: heap) (s: store) (e1 e2: expr):
+  satisfy h s (hasval e1 e2) <-> h (e1 s) = e2 s.
+split; intro.
+simpl in H. destruct H.
+apply H0.
+simpl. split.
+apply dom_spec. intro.
+rewrite H in H0. inversion H0.
+assumption.
 Qed.
 
 Proposition satisfy_hasvaldash (h: heap) (s: store) (x: V):
@@ -353,21 +373,125 @@ Qed.
 Proposition heap_update_substitution_lemma_p1 (h: heap) (s: store) (x: V) (e e0 e1: expr):
   satisfy h s (lor (land (equals x e0) (equals e e1)) (land (lnot (equals x e0)) (hasval e0 e1))) <->
   (s x = e0 s -> e s = e1 s) /\ (s x <> e0 s -> h (e0 s) = e1 s).
-Admitted.
+split; intro.
+- eapply satisfy_lor_elim_gen; [|apply H| |].
+  split; intro.
+  + destruct (Z.eq_dec (e s) (e1 s)).
+    assumption.
+    exfalso. apply H0.
+    intro. destruct H2. apply n. apply H2. assumption.
+  + cut (h (e0 s) = Some (e1 s)). intro. apply H2.
+    destruct (h (e0 s)).
+    f_equal.
+    destruct (Z.eq_dec z (e1 s)).
+    assumption.
+    1,2: exfalso; apply H0.
+    1,2: intro; destruct H2.
+    apply n.
+    1,2: pose proof (H3 H1); inversion H4.
+    reflexivity.
+  + intro.
+    rewrite satisfy_land in H0. destruct H0.
+    rewrite satisfy_equals in H0.
+    rewrite satisfy_equals in H1.
+    split; intro. assumption.
+    exfalso. apply H2. assumption.
+  + intro.
+    rewrite satisfy_land in H0. destruct H0.
+    rewrite satisfy_lnot in H0.
+    rewrite satisfy_equals in H0.
+    rewrite satisfy_hasval in H1.
+    split; intro.
+    exfalso. apply H0. assumption. assumption.
+- destruct H.
+  destruct (Z.eq_dec (s x) (e0 s)).
+  + apply satisfy_lor_intro1.
+    rewrite satisfy_land. split; rewrite satisfy_equals.
+    assumption. apply H. assumption.
+  + apply satisfy_lor_intro2.
+    rewrite satisfy_land. split.
+    rewrite satisfy_lnot. rewrite satisfy_equals. assumption.
+    rewrite satisfy_hasval. apply H0. assumption.
+Qed.
 
 Proposition heap_update_substitution_lemma_p2 (h: heap) (s: store) (x: V) (e e0 e1: expr):
   (s x = e0 s -> e s = e1 s) /\ (s x <> e0 s -> h (e0 s) = e1 s) <->
   dom (heap_update h (s x) (e s)) (e0 s) /\ (heap_update h (s x) (e s)) (e0 s) = e1 s.
-Admitted.
+split; intro.
+- split. apply dom_spec.
+  destruct (Z.eq_dec (s x) (e0 s)).
+  rewrite e2.
+  rewrite heap_update_spec1. intro. inversion H0.
+  rewrite heap_update_spec2. intro. destruct H. rewrite H1 in H0. inversion H0.
+    assumption. assumption.
+  destruct (Z.eq_dec (s x) (e0 s)).
+  rewrite e2.
+  rewrite heap_update_spec1. destruct H. rewrite H. reflexivity. assumption.
+  rewrite heap_update_spec2. destruct H. apply H0. assumption. assumption.
+- destruct H.
+  split; intro.
+  rewrite H1 in H0. rewrite heap_update_spec1 in H0. inversion H0. reflexivity.
+  rewrite heap_update_spec2 in H0; assumption.
+Qed.
 
 Proposition heap_update_substitution_lemma_p3 (s: store) (x v: V) (e: expr) (x1: Z):
   ~ In v (x :: evar e) -> store_update s v x1 x = s x /\ e (store_update s v x1) = e s.
-Admitted.
+intro. split.
+unfold store_update.
+destruct (Nat.eq_dec v x).
+exfalso. rewrite e0 in H. apply H. left. reflexivity. reflexivity.
+apply econd. intro. intro. unfold store_update.
+destruct (Nat.eq_dec v x0).
+exfalso. apply H. right. rewrite e0. assumption.
+reflexivity.
+Qed.
 
-Proposition heap_update_substitution_lemma_p4 (h h1 h2: heap) (s: store) (x: V) (e: expr):
-  Partition h h1 h2 -> ~ dom h2 (s x) ->
-  Partition (heap_update h (s x) (e s)) (heap_update h1 (s x) (e s)) h2.
-Admitted.
+Proposition heap_update_substitution_lemma_p4 (h h1 h2: heap) (k v: Z):
+  Partition h h1 h2 -> ~ dom h2 k ->
+  Partition (heap_update h k v) (heap_update h1 k v) h2.
+intros.
+pose proof (Partition_intro (heap_update h1 k v) h2).
+destruct H1.
+intro. intro. destruct H1.
+destruct (Z.eq_dec k0 k).
+rewrite e in H2. apply H0; assumption.
+rewrite heap_update_dom2 in H1.
+eapply Partition_spec4. apply H. split; [apply H1 | apply H2].
+intro. rewrite H3 in n. apply n; reflexivity.
+pose proof (heap_ext x (heap_update h k v)).
+destruct H2. intro.
+destruct (dom_dec h1 n).
+pose proof (Partition_spec1 _ _ _ H1 n).
+pose proof (Partition_spec1 _ _ _ H n H2).
+destruct (Z.eq_dec n k).
+rewrite H3. rewrite e.
+rewrite heap_update_spec1. rewrite heap_update_spec1. reflexivity.
+rewrite e. apply heap_update_dom1.
+rewrite heap_update_spec2. rewrite H3.
+rewrite heap_update_spec2. symmetry; assumption.
+intro. apply n0. auto.
+apply heap_update_dom2; auto. auto.
+destruct (dom_dec h2 n).
+assert (k <> n). intro. rewrite <- H4 in H3. apply H0. assumption.
+rewrite heap_update_spec2; auto.
+pose proof (Partition_spec2 _ _ _ H1 _ H3).
+pose proof (Partition_spec2 _ _ _ H _ H3).
+rewrite H5. auto.
+destruct (Z.eq_dec n k).
+pose proof (Partition_spec1 _ _ _ H1 k).
+rewrite e. rewrite H4.
+rewrite heap_update_spec1.
+rewrite heap_update_spec1. reflexivity.
+apply heap_update_dom1.
+rewrite heap_update_spec2.
+pose proof (Partition_spec3 _ _ _ H1 n).
+pose proof (Partition_spec3 _ _ _ H n).
+rewrite H5; try assumption.
+rewrite H4; try assumption. reflexivity.
+intro.
+apply heap_update_dom2 in H6. apply H2; assumption.
+auto. auto. assumption.
+Qed.
 
 Proposition heap_update_substitution_lemma_p5 (h h1 h2: heap) (k v: Z):
   Partition (heap_update h k v) h1 h2 ->
@@ -493,7 +617,7 @@ induction p; intros.
     apply satisfy_land. split. assumption.
     apply satisfy_lnot_hasvaldash.
     eapply Partition_dom_right. apply H1.
-    rewrite H3. apply heap_update_dom. apply heap_update_dom.
+    rewrite H3. apply heap_update_dom1. apply heap_update_dom1.
   + rewrite IHp2; [|apply H].
     specialize H0 with h' (heap_update h'' (s x) (e s)).
     rewrite satisfy_land in H2. destruct H2.
@@ -514,10 +638,23 @@ Corollary WPCSL_soundness_lookup (p: assert) (x y: V) (e: expr):
       strong_partial_correct (mkhoare (lexists y (land (sand (hasval e y) true) ps)) (lookup x e) p).
 Admitted.
 
+Corollary WPCSL_soundness_mutation (p: assert) (x: V) (e: expr):
+  forall ps, asub_heap_update p x e = Some ps ->
+    strong_partial_correct (mkhoare (land (hasvaldash x) ps) (mutation x e) p).
+Admitted.
+
+Corollary WPCSL_soundness_new (p: assert) (x: V) (e: expr):
+  ~ In x (evar e) ->
+  forall ps, asub_heap_update p x e = Some ps ->
+    strong_partial_correct (mkhoare (lforall x (limp (lnot (hasvaldash x)) ps)) (new x e) p).
+Admitted.
+
 Theorem WPCSL_soundness: forall pSq, WPCSL pSq -> strong_partial_correct pSq.
 intros. induction H.
 apply WPCSL_soundness_basic; assumption.
 apply WPCSL_soundness_lookup; assumption.
+apply WPCSL_soundness_mutation; assumption.
+apply WPCSL_soundness_new; assumption.
 Qed.
 
 End Classical.
