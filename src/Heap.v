@@ -69,6 +69,13 @@ left; intro; inversion H.
 right; intro; apply H; reflexivity.
 Qed.
 
+Proposition heap_update_dom (h: heap) (k v: Z):
+  dom (heap_update h k v) k.
+apply dom_spec.
+rewrite heap_update_spec1.
+intro. inversion H.
+Qed.
+
 Proposition Partition_lunique (h h' h1 h2: heap):
   Partition h h1 h2 /\ Partition h' h1 h2 -> h = h'.
 intro; destruct H.
@@ -106,6 +113,27 @@ pose proof (dom_dec h1 n); destruct H1;
 - rewrite (Partition_spec3 _ _ _ H); try assumption.
   rewrite (Partition_spec3 _ _ _ H0); try assumption.
   reflexivity.
+Qed.
+
+Proposition Partition_dom_split (h h1 h2: heap) (x: Z):
+  Partition h h1 h2 -> dom h x -> dom h1 x \/ dom h2 x.
+intros.
+destruct (dom_dec h1 x).
+left; auto.
+destruct (dom_dec h2 x).
+right; auto.
+apply dom_spec in H0.
+exfalso. apply H0.
+eapply Partition_spec3.
+apply H. assumption. assumption.
+Qed.
+
+Proposition Partition_dom_right (h h1 h2: heap) (x: Z):
+  Partition h h1 h2 -> dom h x -> dom h1 x -> ~dom h2 x.
+intros.
+destruct (dom_dec h2 x).
+exfalso. eapply Partition_spec4. apply H. split. apply H1. apply H2.
+assumption.
 Qed.
 
 End HeapFacts.

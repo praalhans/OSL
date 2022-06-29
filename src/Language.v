@@ -577,32 +577,32 @@ try (((rewrite aoccur_split_land in H0;
     apply H0; right; assumption | apply in_or_app; auto].
 Qed.
 
-Fixpoint asubheapupd (p: assert) (x: V) (e: expr): option assert :=
+Fixpoint asub_heap_update (p: assert) (x: V) (e: expr): option assert :=
   match p with
   | test g => test g
   | hasval e1 e2 => (lor (land (equals x e1) (equals e e2)) (land (lnot (equals x e1)) (hasval e1 e2)))
-  | land p q => option_app (asubheapupd p x e) (fun ps =>
-      option_app (asubheapupd q x e) (fun qs => land ps qs))
-  | lor p q => option_app (asubheapupd p x e) (fun ps =>
-      option_app (asubheapupd q x e) (fun qs => lor ps qs))
-  | limp p q => option_app (asubheapupd p x e) (fun ps =>
-      option_app (asubheapupd q x e) (fun qs => limp ps qs))
+  | land p q => option_app (asub_heap_update p x e) (fun ps =>
+      option_app (asub_heap_update q x e) (fun qs => land ps qs))
+  | lor p q => option_app (asub_heap_update p x e) (fun ps =>
+      option_app (asub_heap_update q x e) (fun qs => lor ps qs))
+  | limp p q => option_app (asub_heap_update p x e) (fun ps =>
+      option_app (asub_heap_update q x e) (fun qs => limp ps qs))
   | lexists y p => if in_dec Nat.eq_dec y (x :: evar e) then None else
-      option_app (asubheapupd p x e) (fun ps => lexists y ps)
+      option_app (asub_heap_update p x e) (fun ps => lexists y ps)
   | lforall y p => if in_dec Nat.eq_dec y (x :: evar e) then None else
-      option_app (asubheapupd p x e) (fun ps => lforall y ps)
-  | sand p q => option_app (asubheapupd p x e) (fun ps =>
-      option_app (asubheapupd q x e) (fun qs => lor (sand ps (land q (lnot (hasvaldash x))))
+      option_app (asub_heap_update p x e) (fun ps => lforall y ps)
+  | sand p q => option_app (asub_heap_update p x e) (fun ps =>
+      option_app (asub_heap_update q x e) (fun qs => lor (sand ps (land q (lnot (hasvaldash x))))
         (sand (land p (lnot (hasvaldash x))) qs)))
   | simp p q => if sublist_part_dec Nat.eq_dec (x :: evar e) (abound p) then None else
-      option_app (asubheapupd q x e) (fun qs => simp (land p (lnot (hasvaldash x))) qs)
+      option_app (asub_heap_update q x e) (fun qs => simp (land p (lnot (hasvaldash x))) qs)
   end.
 
-Proposition asubheapupd_defined_step1 (C: assert -> assert -> assert) (p1 p2: assert) (x: V) (e: expr)
-    (IHp1: (forall y : V, In y (x :: evar e) -> ~ In y (abound p1)) <-> (exists q : assert, asubheapupd p1 x e = Some q))
-    (IHp2: (forall y : V, In y (x :: evar e) -> ~ In y (abound p2)) <-> (exists q : assert, asubheapupd p2 x e = Some q)):
+Proposition asub_heap_update_defined_step1 (C: assert -> assert -> assert) (p1 p2: assert) (x: V) (e: expr)
+    (IHp1: (forall y : V, In y (x :: evar e) -> ~ In y (abound p1)) <-> (exists q : assert, asub_heap_update p1 x e = Some q))
+    (IHp2: (forall y : V, In y (x :: evar e) -> ~ In y (abound p2)) <-> (exists q : assert, asub_heap_update p2 x e = Some q)):
   (forall y : V, In y (x :: evar e) -> ~ In y (abound p1 ++ abound p2)) <->
-  (exists q : assert, option_app (asubheapupd p1 x e) (fun ps : assert => option_app (asubheapupd p2 x e) (fun qs : assert => C ps qs)) = Some q).
+  (exists q : assert, option_app (asub_heap_update p1 x e) (fun ps : assert => option_app (asub_heap_update p2 x e) (fun qs : assert => C ps qs)) = Some q).
 split; intros.
 - apply In_app_split in H; destruct H.
   apply IHp1 in H; destruct H.
@@ -610,23 +610,23 @@ split; intros.
   exists (C x0 x1); rewrite H; rewrite H0; reflexivity.
 - destruct H.
   apply option_app_elim in H; destruct H; destruct H.
-  assert (exists q, asubheapupd p1 x e = Some q) by (exists x1; assumption).
+  assert (exists q, asub_heap_update p1 x e = Some q) by (exists x1; assumption).
   apply option_app_elim in H1; destruct H1; destruct H1.
-  assert (exists q, asubheapupd p2 x e = Some q) by (exists x2; assumption).
+  assert (exists q, asub_heap_update p2 x e = Some q) by (exists x2; assumption).
   apply not_In_split; split.
   apply <- IHp1; assumption.
   apply <- IHp2; assumption.
 Qed.
 
-Proposition asubheapupd_defined (p: assert) (x: V) (e: expr):
-  (forall y, In y (x :: evar e) -> ~In y (abound p)) <-> exists q, asubheapupd p x e = Some q.
+Proposition asub_heap_update_defined (p: assert) (x: V) (e: expr):
+  (forall y, In y (x :: evar e) -> ~In y (abound p)) <-> exists q, asub_heap_update p x e = Some q.
 induction p;
-try (apply asubheapupd_defined_step1; assumption; fail).
+try (apply asub_heap_update_defined_step1; assumption; fail).
 - simpl; split; intros.
   eexists; reflexivity. tauto.
 - simpl; split; intros.
   eexists; reflexivity. tauto.
-- unfold asubheapupd. fold asubheapupd.  
+- unfold asub_heap_update. fold asub_heap_update.
   destruct (in_dec Nat.eq_dec v (x :: evar e)).
   + split; intro. exfalso. eapply H. apply i.
     simpl. left; reflexivity.
@@ -638,14 +638,14 @@ try (apply asubheapupd_defined_step1; assumption; fail).
     exists (lexists v x0). rewrite H0. reflexivity.
     destruct H.
     apply option_app_elim in H; destruct H; destruct H.
-    assert (exists q : assert, asubheapupd p x e = Some q) by
+    assert (exists q : assert, asub_heap_update p x e = Some q) by
       (exists x1; assumption).
     intros.
     eapply IHp in H1; [|apply H2].
     intro. simpl in H3. destruct H3.
     apply n. rewrite H3. assumption.
     apply H1. assumption.
-- unfold asubheapupd. fold asubheapupd.  
+- unfold asub_heap_update. fold asub_heap_update.
   destruct (in_dec Nat.eq_dec v (x :: evar e)).
   + split; intro. exfalso. eapply H. apply i.
     simpl. left; reflexivity.
@@ -657,7 +657,7 @@ try (apply asubheapupd_defined_step1; assumption; fail).
     exists (lforall v x0). rewrite H0. reflexivity.
     destruct H.
     apply option_app_elim in H; destruct H; destruct H.
-    assert (exists q : assert, asubheapupd p x e = Some q) by
+    assert (exists q : assert, asub_heap_update p x e = Some q) by
       (exists x1; assumption).
     intros.
     eapply IHp in H1; [|apply H2].
@@ -669,17 +669,17 @@ try (apply asubheapupd_defined_step1; assumption; fail).
     apply In_app_split in H. destruct H.
     apply IHp2 in H0; destruct H0.
     exists (simp (land p1 (lnot (hasvaldash x))) x0).
-    unfold asubheapupd. fold asubheapupd. rewrite H0.
+    unfold asub_heap_update. fold asub_heap_update. rewrite H0.
     destruct (sublist_part_dec Nat.eq_dec (x :: evar e) (abound p1)).
     destruct e0 as (x1 & H1 & H2).
     exfalso; eapply H. apply H1. apply H2.
     reflexivity.
   + destruct H.
-    unfold asubheapupd in H; fold asubheapupd in H.
+    unfold asub_heap_update in H; fold asub_heap_update in H.
     destruct (sublist_part_dec Nat.eq_dec (x :: evar e) (abound p1)).
     inversion H.
     apply option_app_elim in H; destruct H; destruct H.
-    assert (exists q : assert, asubheapupd p2 x e = Some q) by
+    assert (exists q : assert, asub_heap_update p2 x e = Some q) by
       (exists x1; assumption).
     rewrite <- IHp2 in H2.
     simpl. intro. apply in_app_or in H3; destruct H3.
