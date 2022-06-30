@@ -34,12 +34,47 @@ eapply le_trans.
 apply IHxs; assumption.
 assumption.
 Qed.
+Proposition maximum_In (xs: list V):
+  xs <> nil -> In (maximum xs) xs.
+intro. destruct xs.
+exfalso; apply H; reflexivity.
+induction xs.
+simpl. left. unfold dummy.
+rewrite Nat.max_0_r; reflexivity.
+simpl.
+assert (In (maximum (v :: xs)) (v :: xs)).
+  apply IHxs. intro. inversion H0. clear IHxs.
+inversion H0. simpl in H1.
+destruct (Nat.max_dec a (maximum xs)).
+rewrite e.
+destruct (Nat.max_dec v a).
+left. auto.
+right. left. auto.
+left. rewrite e. auto.
+destruct (Nat.max_dec a (maximum xs)).
+rewrite e.
+destruct (Nat.max_dec v a).
+left. auto.
+right. left. auto.
+rewrite e.
+right. right. apply H1.
+Qed.
 
 Proposition maximum_app (xs ys: list V):
   maximum (xs ++ ys) = max (maximum xs) (maximum ys).
 induction xs; simpl. reflexivity.
 rewrite IHxs.
 apply Nat.max_assoc.
+Qed.
+
+Proposition maximum_subset (xs zs: list V):
+  (forall x : V, In x xs -> In x zs) -> maximum xs <= maximum zs.
+intro. destruct xs.
+simpl. unfold dummy.
+apply Nat.le_0_l.
+pose proof (maximum_prop zs).
+pose proof (maximum_In (v :: xs)).
+apply H0. apply H. apply H1. intro. inversion H2.
 Qed.
 
 Definition fresh (xs: list V): V := S (maximum xs).
@@ -81,6 +116,17 @@ apply fresh_prop in H0.
 eapply Nat.lt_irrefl.
 eapply Nat.lt_trans. apply H. apply H0.
 exfalso. apply n. assumption.
+Qed.
+
+Proposition fresh_notInGeneral (xs zs: list V):
+  (forall x, In x xs -> In x zs) -> ~In (fresh zs) xs.
+intro.
+apply maximum_subset in H.
+unfold fresh.
+intro.
+apply maximum_prop in H0.
+eapply le_trans in H; [|apply H0].
+eapply Nat.nle_succ_diag_l. apply H.
 Qed.
 
 Definition store := V -> Z.
@@ -687,24 +733,122 @@ try (apply asub_heap_update_defined_step1; assumption; fail).
     eapply H2. apply H0. apply H3.
 Qed.
 
-Fixpoint asub_heap_dispose (p: assert) (x: V) (e: expr): option assert :=
+Fixpoint asub_heap_clear (p: assert) (x: V): option assert :=
   match p with
   | test g => test g
   | hasval e1 e2 => (land (lnot (equals x e1)) (hasval e1 e2))
-  | land p q => option_app (asub_heap_dispose p x e) (fun ps =>
-      option_app (asub_heap_dispose q x e) (fun qs => land ps qs))
-  | lor p q => option_app (asub_heap_dispose p x e) (fun ps =>
-      option_app (asub_heap_dispose q x e) (fun qs => lor ps qs))
-  | limp p q => option_app (asub_heap_dispose p x e) (fun ps =>
-      option_app (asub_heap_dispose q x e) (fun qs => limp ps qs))
-  | lexists y p => if in_dec Nat.eq_dec y (x :: evar e) then None else
-      option_app (asub_heap_dispose p x e) (fun ps => lexists y ps)
-  | lforall y p => if in_dec Nat.eq_dec y (x :: evar e) then None else
-      option_app (asub_heap_dispose p x e) (fun ps => lforall y ps)
-  | sand p q => option_app (asub_heap_update p x e) (fun ps =>
-      option_app (asub_heap_update q x e) (fun qs => sand ps qs))
-  | simp p q => (* TODO *) false
+  | land p q => option_app (asub_heap_clear p x) (fun ps =>
+      option_app (asub_heap_clear q x) (fun qs => land ps qs))
+  | lor p q => option_app (asub_heap_clear p x) (fun ps =>
+      option_app (asub_heap_clear q x) (fun qs => lor ps qs))
+  | limp p q => option_app (asub_heap_clear p x) (fun ps =>
+      option_app (asub_heap_clear q x) (fun qs => limp ps qs))
+  | lexists y p => if Nat.eq_dec y x then None else
+      option_app (asub_heap_clear p x) (fun ps => lexists y ps)
+  | lforall y p => if Nat.eq_dec y x then None else
+      option_app (asub_heap_clear p x) (fun ps => lforall y ps)
+  | sand p q => option_app (asub_heap_clear p x) (fun ps =>
+      option_app (asub_heap_clear q x) (fun qs => sand ps qs))
+  | simp p q => let y := fresh (x :: aoccur p ++ aoccur q) in
+      option_app (asub_heap_clear q x) (fun qs =>
+        option_app (asub_heap_update p x y) (fun pss =>
+          option_app (asub_heap_update q x y) (fun qss =>
+            (land (simp (land p (lnot (hasvaldash x))) qs) (lforall y (simp pss qss))))))
   end.
+
+Proposition asub_heap_clear_defined_step1 (C: assert -> assert -> assert) (p1 p2: assert) (x: V)
+    (IHp1: ~ In x (abound p1) <-> (exists q : assert, asub_heap_clear p1 x = Some q))
+    (IHp2: ~ In x (abound p2) <-> (exists q : assert, asub_heap_clear p2 x = Some q)):
+  ~ In x (abound p1 ++ abound p2) <-> (exists q : assert, option_app (asub_heap_clear p1 x)
+    (fun ps : assert => option_app (asub_heap_clear p2 x) (fun qs : assert => C ps qs)) = Some q).
+split; intros.
+- assert (~In x (abound p1)) by
+    (intro; apply H; apply in_or_app; auto).
+  assert (~In x (abound p2)) by
+    (intro; apply H; apply in_or_app; auto).
+  rewrite IHp1 in H0; rewrite IHp2 in H1.
+  destruct H0; destruct H1.
+  exists (C x0 x1).
+  rewrite H0; rewrite H1.
+  reflexivity.
+- destruct H.
+  apply option_app_elim in H; destruct H; destruct H.
+  apply option_app_elim in H0; destruct H0; destruct H0.
+  intro. apply in_app_or in H2. destruct H2.
+  apply <- IHp1; auto. exists x1; auto.
+  apply <- IHp2; auto. exists x2; auto.
+Qed.
+
+Proposition asub_heap_clear_defined_step2 (Q: V -> assert -> assert) (p: assert) (x v: V)
+    (IHp: ~ In x (abound p) <-> (exists q : assert, asub_heap_clear p x = Some q)):
+  ~ (v = x \/ In x (abound p)) <->
+  (exists q : assert, (if Nat.eq_dec v x then None else option_app (asub_heap_clear p x) (fun ps : assert => Q v ps)) = Some q).
+split; intro.
+- destruct (Nat.eq_dec v x).
+  exfalso; apply H; auto.
+  assert (~In x (abound p)) by
+    (intro; apply H; auto).
+  rewrite IHp in H0; destruct H0.
+  exists (Q v x0); rewrite H0; reflexivity.
+- destruct (Nat.eq_dec v x); destruct H.
+  inversion H.
+  apply option_app_elim in H; destruct H; destruct H.
+  intro; destruct H1.
+  apply n; auto.
+  apply <- IHp.
+  exists x1; auto.
+  auto.
+Qed.
+
+Proposition asub_heap_clear_defined (p: assert) (x: V):
+  ~In x (abound p) <-> exists q, asub_heap_clear p x = Some q.
+induction p;
+try (apply asub_heap_clear_defined_step1; assumption; fail);
+try (apply asub_heap_clear_defined_step2; assumption; fail).
+- simpl; split; intros.
+  eexists; reflexivity. tauto.
+- simpl; split; intros.
+  eexists; reflexivity. tauto.
+- simpl. split; intros.
+  + assert (~In x (abound p2)) by
+    (intro; apply H; apply in_or_app; auto).
+    rewrite IHp2 in H0. destruct H0.
+    remember (fresh (x :: aoccur p1 ++ aoccur p2)).
+    pose proof (asub_heap_update_defined p1 x v).
+    assert (forall y : V, In y (x :: evar v) -> ~ In y (abound p1)).
+    { intros. inversion H2. rewrite <- H3.
+      intro. apply H. apply in_or_app; auto.
+      simpl in H3. destruct H3; auto.
+      rewrite <- H3. rewrite Heqv.
+      unfold aoccur.
+      apply fresh_notInGeneral.
+        intros. right. apply in_or_app. left.
+        apply in_or_app. left. assumption. }
+    apply H1 in H2. destruct H2.
+    pose proof (asub_heap_update_defined p2 x v).
+    assert (forall y : V, In y (x :: evar v) -> ~ In y (abound p2)).
+    { intros. inversion H4. rewrite <- H5.
+      intro. apply H. apply in_or_app; auto.
+      simpl in H5. destruct H5; auto.
+      rewrite <- H5. rewrite Heqv.
+      unfold aoccur.
+      apply fresh_notInGeneral.
+        intros. right. apply in_or_app. right.
+        apply in_or_app. left. assumption. }
+    apply H3 in H4. destruct H4.
+    exists (land (simp (land p1 (lnot (hasvaldash x))) x0) (lforall v (simp x1 x2))).
+    rewrite H0. simpl. rewrite H2. simpl. rewrite H4. simpl. reflexivity.
+  + destruct H.
+    apply option_app_elim in H; destruct H; destruct H.
+    apply option_app_elim in H0; destruct H0; destruct H0.
+    assert (~ In x (abound p1)).
+     pose proof (asub_heap_update_defined p1 x (fresh (x :: aoccur p1 ++ aoccur p2))).
+      apply <- H2. exists x2; auto. left; auto.
+    assert (~ In x (abound p2)).
+      apply <- IHp2. exists x1; auto.
+    intro. apply in_app_or in H4. destruct H4.
+    apply H2; auto. apply H3; auto.
+Qed.
 
 Variant assignment :=
 | basic: V -> expr -> assignment
@@ -714,8 +858,8 @@ Variant assignment :=
 | dispose: V -> assignment.
 
 Inductive program :=
-| assign: assignment -> program
-| comp: program -> program -> program.
+| assign: assignment -> program.
+(* | comp: program -> program -> program. *)
 Coercion assign: assignment >-> program.
 
 Inductive bigstep: program -> heap * store -> option (heap * store) -> Prop :=
@@ -742,8 +886,8 @@ Inductive bigstep: program -> heap * store -> option (heap * store) -> Prop :=
     bigstep (dispose x) (h, s) (Some (heap_clear h (s x), s))
 | step_dispose_fail (x: V) (h: heap) (s: store):
     ~dom h (s x) ->
-    bigstep (dispose x) (h, s) None
-| step_comp (S1 S2: program) (h h' h'': heap) (s s' s'': store):
+    bigstep (dispose x) (h, s) None.
+(*| step_comp (S1 S2: program) (h h' h'': heap) (s s' s'': store):
     bigstep S1 (h, s) (Some (h', s')) ->
     bigstep S2 (h', s') (Some (h'', s'')) ->
     bigstep (comp S1 S2) (h, s) (Some (h'', s''))
@@ -753,7 +897,7 @@ Inductive bigstep: program -> heap * store -> option (heap * store) -> Prop :=
 | step_comp_fail2 (S1 S2: program) (h h': heap) (s s': store):
     bigstep S1 (h, s) (Some (h', s')) ->
     bigstep S2 (h', s') None ->
-    bigstep (comp S1 S2) (h, s) None.
+    bigstep (comp S1 S2) (h, s) None.*)
 
 Inductive hoare :=
 | mkhoare: assert -> program -> assert -> hoare.
@@ -780,7 +924,10 @@ Inductive WPCSL: hoare -> Set :=
 | wpc_new (p ps: assert) (x: V) (e: expr):
     ~In x (evar e) ->
     asub_heap_update p x e = ps ->
-    WPCSL (mkhoare (lforall x (limp (lnot (hasvaldash x)) ps)) (new x e) p).
+    WPCSL (mkhoare (lforall x (limp (lnot (hasvaldash x)) ps)) (new x e) p)
+| wpc_dispose (p ps: assert) (x: V):
+    asub_heap_clear p x = ps ->
+    WPCSL (mkhoare (land (hasvaldash x) ps) (dispose x) p).
 
 End Language.
 

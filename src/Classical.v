@@ -627,6 +627,28 @@ induction p; intros.
     assumption.
 Qed.
 
+Lemma heap_clear_substitution_lemma (h: heap) (s: store) (p: assert) (x: V):
+  forall ps, asub_heap_clear p x = Some ps ->
+    (satisfy h s ps <-> satisfy (heap_clear h (s x)) s p).
+generalize dependent s; generalize dependent h;
+induction p; intros.
+- inversion H; unfold satisfy; apply iff_refl.
+- simpl in H; inversion H; clear H H1.
+  simpl.
+  split; intro; destruct H.
+  + destruct (Z.eq_dec (s x) (e s)).
+    exfalso. assert (false = true) by (apply H; reflexivity). inversion H1.
+    destruct H0.
+    split. apply heap_clear_dom2; assumption.
+    rewrite heap_clear_spec2; assumption.
+  + destruct (Z.eq_dec (s x) (e s)).
+    exfalso. eapply heap_clear_dom1. rewrite e1 in H. apply H.
+    split. auto. split.
+    eapply heap_clear_dom2. apply n. assumption.
+    rewrite heap_clear_spec2 in H0; assumption.
+- 
+Admitted.
+
 Corollary WPCSL_soundness_basic (p: assert) (x: V) (e: expr):
   forall ps, asub p x e = Some ps ->
     strong_partial_correct (mkhoare ps (basic x e) p).
@@ -649,12 +671,18 @@ Corollary WPCSL_soundness_new (p: assert) (x: V) (e: expr):
     strong_partial_correct (mkhoare (lforall x (limp (lnot (hasvaldash x)) ps)) (new x e) p).
 Admitted.
 
+Corollary WPCSL_soundness_dispose (p: assert) (x: V):
+  forall ps, asub_heap_clear p x = Some ps ->
+    strong_partial_correct (mkhoare (land (hasvaldash x) ps) (dispose x) p).
+Admitted.
+
 Theorem WPCSL_soundness: forall pSq, WPCSL pSq -> strong_partial_correct pSq.
 intros. induction H.
 apply WPCSL_soundness_basic; assumption.
 apply WPCSL_soundness_lookup; assumption.
 apply WPCSL_soundness_mutation; assumption.
 apply WPCSL_soundness_new; assumption.
+apply WPCSL_soundness_dispose; assumption.
 Qed.
 
 End Classical.

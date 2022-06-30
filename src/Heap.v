@@ -90,6 +90,24 @@ rewrite dom_spec in H0. assumption.
 assumption.
 Qed.
 
+Proposition heap_clear_dom1 (h: heap) (k: Z):
+  ~dom (heap_clear h k) k.
+intro.
+rewrite dom_spec in H.
+rewrite heap_clear_spec1 in H.
+apply H; reflexivity.
+Qed.
+
+Proposition heap_clear_dom2 (h: heap) (k k': Z):
+  k <> k' -> dom (heap_clear h k) k' <-> dom h k'.
+intro.
+rewrite dom_spec.
+rewrite dom_spec.
+rewrite heap_clear_spec2.
+apply iff_refl.
+assumption.
+Qed.
+
 Proposition Partition_lunique (h h' h1 h2: heap):
   Partition h h1 h2 /\ Partition h' h1 h2 -> h = h'.
 intro; destruct H.
