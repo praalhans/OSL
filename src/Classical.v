@@ -627,6 +627,51 @@ induction p; intros.
     assumption.
 Qed.
 
+Proposition heap_clear_substitution_lemma_p1 (h h1 h2: heap) (k: Z):
+  Partition h h1 h2 ->
+  Partition (heap_clear h k) (heap_clear h1 k) (heap_clear h2 k).
+Admitted.
+
+Proposition heap_clear_substitution_lemma_p2 (h h1 h2: heap) (k: Z):
+  Partition (heap_clear h k) h1 h2 ->
+  exists h11 h22, Partition h h11 h22 /\ h1 = heap_clear h11 k /\ h2 = heap_clear h22 k.
+Admitted.
+
+Proposition heap_clear_substitution_lemma_p3 (h h': heap) (k0: Z):
+  (forall k : Z, ~ (dom (heap_clear h k0) k /\ dom h' k)) ->
+  forall k : Z, ~ (dom h k /\ dom (heap_clear h' k0) k).
+Admitted.
+
+Proposition heap_clear_substitution_lemma_p4 (s: store) (y: V) (z: Z) (p: assert):
+  ~In y (avar p) -> eq_restr (store_update s y z) s (avar p).
+Admitted.
+
+Proposition heap_clear_substitution_lemma_p5 (x y: V) (s s': store) (z: Z) (h: heap):
+  x <> y -> s' = store_update s y z -> h = heap_update (heap_clear h (s x)) (s' x) (y s').
+Admitted.
+
+Proposition heap_clear_substitution_lemma_p6 (x y: V) (s s': store) (z: Z) (h h' h'' hh: heap):
+  Partition h'' (heap_clear h (s x)) h' ->
+  Partition hh h (heap_clear h' (s x)) ->
+  s' = store_update s y z ->
+  x <> y ->
+  h'' = heap_update hh (s' x) (y s').
+Admitted.
+
+Proposition heap_clear_substitution_lemma_p7 (h h' h'' hh: heap) (k: Z):
+  Partition h'' (heap_clear h k) h' -> ~dom h' k ->
+  Partition hh h h' -> h'' = heap_clear hh k.
+Admitted.
+
+Proposition heap_clear_substitution_lemma_p8 (h h' h'': heap) (k v: Z):
+  Partition h'' h h' -> exists hh, Partition hh (heap_clear h k) (heap_update h' k v).
+Admitted.
+
+Proposition heap_clear_substitution_lemma_p9 (h h' h'' hh: heap) (k v: Z):
+  Partition h'' h h' -> Partition hh (heap_clear h k) (heap_update h' k v) ->
+  hh = heap_update h'' k v.
+Admitted.
+
 Lemma heap_clear_substitution_lemma (h: heap) (s: store) (p: assert) (x: V):
   forall ps, asub_heap_clear p x = Some ps ->
     (satisfy h s ps <-> satisfy (heap_clear h (s x)) s p).
@@ -646,8 +691,171 @@ induction p; intros.
     split. auto. split.
     eapply heap_clear_dom2. apply n. assumption.
     rewrite heap_clear_spec2 in H0; assumption.
-- 
-Admitted.
+- apply option_app_elim in H; destruct H; destruct H.
+  fold asub_heap_clear in H; fold asub_heap_clear in H0.
+  apply option_app_elim in H0; destruct H0; destruct H0.
+  inversion H1. clear dependent ps.
+  simpl; apply iff_split_and.
+  apply IHp1; assumption.
+  apply IHp2; assumption.
+- apply option_app_elim in H; destruct H; destruct H.
+  fold asub_heap_clear in H; fold asub_heap_clear in H0.
+  apply option_app_elim in H0; destruct H0; destruct H0.
+  inversion H1. clear dependent ps.
+  simpl; apply iff_split_not_and_not.
+  apply IHp1; assumption.
+  apply IHp2; assumption.
+- apply option_app_elim in H; destruct H; destruct H.
+  fold asub_heap_clear in H; fold asub_heap_clear in H0.
+  apply option_app_elim in H0; destruct H0; destruct H0.
+  inversion H1. clear dependent ps.
+  simpl; apply iff_split_imp.
+  apply IHp1; assumption.
+  apply IHp2; assumption.
+- unfold asub_heap_clear in H; fold asub_heap_clear in H.
+  destruct (Nat.eq_dec v x). inversion H.
+  apply option_app_elim in H; destruct H; destruct H.
+  inversion H0; clear dependent ps.
+  simpl; apply iff_split_not_forall_not; intro.
+  specialize IHp with h (store_update s v x1) x0.
+  apply IHp in H. rewrite H.
+  rewrite store_update_lookup_diff.
+  apply iff_refl. assumption.
+- unfold asub_heap_clear in H; fold asub_heap_clear in H.
+  destruct (Nat.eq_dec v x). inversion H.
+  apply option_app_elim in H; destruct H; destruct H.
+  inversion H0; clear dependent ps.
+  simpl; apply iff_split_forall; intro.
+  specialize IHp with h (store_update s v x1) x0.
+  apply IHp in H. rewrite H.
+  rewrite store_update_lookup_diff.
+  apply iff_refl. assumption.
+- apply option_app_elim in H; destruct H; destruct H.
+  fold asub_heap_clear in H; fold asub_heap_clear in H0.
+  apply option_app_elim in H0; destruct H0; destruct H0.
+  inversion H1. clear dependent ps.
+  simpl. split; intro.
+  + intro. apply H1. intros. intro.
+    destruct H3; destruct H4.
+    rewrite IHp1 in H4; try assumption.
+    rewrite IHp2 in H5; try assumption.
+    eapply H2. split.
+    2: split; [apply H4 | apply H5].
+    apply heap_clear_substitution_lemma_p1. assumption.
+  + intro. apply H1; clear H1. intros. intro.
+    destruct H1; destruct H3.
+    pose proof (heap_clear_substitution_lemma_p2 _ _ _ _ H1).
+    destruct H5; destruct H5; destruct H5; destruct H6.
+    rewrite H6 in *; clear dependent h1.
+    rewrite H7 in *; clear dependent h2.
+    rewrite <- IHp1 in H3; [|apply H].
+    rewrite <- IHp2 in H4; [|apply H0].
+    eapply H2. split. apply H5. auto.
+- apply option_app_elim in H; destruct H; destruct H.
+  fold asub_heap_clear in H.
+  apply option_app_elim in H0; destruct H0; destruct H0.
+  apply option_app_elim in H1; destruct H1; destruct H1.
+  inversion H2; clear dependent ps.
+  remember (fresh (x :: aoccur p1 ++ aoccur p2)) as y.
+  split; intro.
+  + rewrite satisfy_land in H2; destruct H2.
+    rewrite satisfy_simp; intros.
+    remember (h' (s x)); destruct o.
+    * remember (store_update s y z) as s'.
+      rewrite acond with (t := s') in H5.
+      pose proof (heap_update_substitution_lemma (heap_clear h' (s x)) s' p1 x y x1 H0).
+      assert (h' = heap_update (heap_clear h' (s x)) (s' x) (y s')). {
+        eapply heap_clear_substitution_lemma_p5. intro. rewrite H7 in Heqy.
+        pose proof (fresh_notIn (y :: aoccur p1 ++ aoccur p2)). rewrite <- Heqy in H8.
+        apply H8. left. auto. apply Heqs'. }
+      rewrite <- H7 in H6. apply H6 in H5.
+      simpl in H3.
+      pose proof (Partition_intro h (heap_clear h' (s x))); destruct H8.
+      pose proof (Partition_spec4 h'' (heap_clear h (s x)) h' H4).
+      apply heap_clear_substitution_lemma_p3. assumption.
+      specialize H3 with z x3 (heap_clear h' (s x)).
+      rewrite <- Heqs' in H3.
+      pose proof (H3 H8 H5).
+      pose proof (heap_update_substitution_lemma x3 s' p2 x y x2 H1).
+      apply H10 in H9.
+      rewrite acond with (t := s) in H9.
+      assert (h'' = heap_update x3 (s' x) (y s')). {
+        eapply heap_clear_substitution_lemma_p6. apply H4.
+        apply H8. apply Heqs'. intro. rewrite H11 in Heqy.
+        pose proof (fresh_notIn (y :: aoccur p1 ++ aoccur p2)). rewrite <- Heqy in H12.
+        apply H12. left. auto. }
+      rewrite H11. assumption.
+      rewrite Heqs'.
+      apply heap_clear_substitution_lemma_p4.
+      rewrite Heqy.
+      apply fresh_notInGeneral. intros.
+      right. apply in_or_app. right. unfold aoccur. apply in_or_app; auto.
+      rewrite Heqs'.
+      apply eq_restr_comm.
+      apply heap_clear_substitution_lemma_p4.
+      rewrite Heqy.
+      apply fresh_notInGeneral. intros.
+      right. apply in_or_app. left. unfold aoccur. apply in_or_app; auto.
+    * rewrite satisfy_simp in H2.
+      pose proof (Partition_intro h h'). destruct H6. {
+        intro. destruct (Z.eq_dec k (s x)). intro. destruct H6.
+        apply dom_spec in H7. apply H7. rewrite e. symmetry; assumption.
+        pose proof (Partition_spec4 _ _ _ H4 k).
+        intro. destruct H7. apply H6. split.
+        apply heap_clear_dom2. intro. apply n. symmetry. assumption. assumption. assumption. }
+      specialize H2 with h' x3.
+      pose proof (H2 H6).
+      assert (satisfy h' s (land p1 (lnot (hasvaldash x)))).
+      rewrite satisfy_land. split. assumption.
+      rewrite satisfy_lnot.
+      rewrite satisfy_hasvaldash.
+      rewrite dom_spec. intro. apply H8. symmetry. assumption.
+      apply H7 in H8; clear H7.
+      rewrite IHp2 in H8; try assumption.
+      assert (h'' = heap_clear x3 (s x)). {
+        eapply heap_clear_substitution_lemma_p7. apply H4.
+        rewrite dom_spec; intro. apply H7. symmetry; assumption. assumption. }
+      rewrite H7. assumption.
+  + rewrite satisfy_land. split.
+    * rewrite satisfy_simp. intros.
+      rewrite satisfy_land in H4; destruct H4.
+      rewrite satisfy_lnot in H5; rewrite satisfy_hasvaldash in H5.
+      pose proof (Partition_intro (heap_clear h (s x)) h'). destruct H6. {
+      intro. intro. destruct H6. destruct (Z.eq_dec (s x) k). apply H5.
+      rewrite e. assumption. rewrite heap_clear_dom2 in H6.
+      eapply Partition_spec4. apply H3. split. apply H6. apply H7. assumption. }
+      rewrite satisfy_simp in H2.
+      assert (satisfy x3 s p2). eapply H2. apply H6. assumption.
+      apply <- IHp2; try assumption.
+      pose proof (heap_clear_substitution_lemma_p7 _ _ _ _ _ H6 H5 H3).
+      rewrite <- H8. assumption.
+    * assert (y <> x) as G. {
+        intro. rewrite H3 in Heqy. pose proof fresh_notIn (x :: aoccur p1 ++ aoccur p2).
+        apply H4. rewrite <- Heqy. left. auto. }
+      rewrite satisfy_lforall. intros.
+      rewrite satisfy_simp. intros.
+      pose proof (heap_update_substitution_lemma h' (store_update s y v) p1 x y x1 H0).
+      apply H5 in H4. clear H5.
+      rewrite acond with (t := s) in H4. simpl in H4. rewrite store_update_lookup_same in H4.
+      rewrite store_update_lookup_diff in H4; try assumption. rewrite satisfy_simp in H2.
+      pose proof (heap_clear_substitution_lemma_p8 h h' h'' (s x) v H3). destruct H5.
+      pose proof (H2 _ _ H5 H4).
+      rewrite acond with (t := store_update s y v) in H6.
+      assert (x3 = heap_update h'' (s x) v). {
+        eapply heap_clear_substitution_lemma_p9. apply H3. assumption. }
+      rewrite H7 in H6.
+      pose proof (heap_update_substitution_lemma h'' (store_update s y v) p2 x y x2 H1).
+      simpl in H8. rewrite store_update_lookup_same in H8.
+      rewrite store_update_lookup_diff in H8; try assumption.
+      rewrite <- H8 in H6. assumption.
+      apply eq_restr_comm.
+      apply heap_clear_substitution_lemma_p4.
+      rewrite Heqy. apply fresh_notInGeneral. intros. right.
+      apply in_or_app. right. apply in_or_app. auto.
+      apply heap_clear_substitution_lemma_p4.
+      rewrite Heqy. apply fresh_notInGeneral. intros. right.
+      apply in_or_app. left. apply in_or_app. auto.
+Qed.
 
 Corollary WPCSL_soundness_basic (p: assert) (x: V) (e: expr):
   forall ps, asub p x e = Some ps ->
