@@ -910,24 +910,27 @@ Definition post: hoare -> assert := fun '(mkhoare _ _ q) => q.
 (* Weakest precondition axiomatization (WP-CSL) *)
 (* ============================================ *)
 
-Inductive WPCSL: hoare -> Set :=
+Inductive WPCSL (Gamma: assert -> Prop): hoare -> Set :=
 | wpc_basic (p ps: assert) (x: V) (e: expr):
     asub p x e = Some ps ->
-    WPCSL (mkhoare ps (basic x e) p)
+    WPCSL Gamma (mkhoare ps (basic x e) p)
 | wpc_lookup (p ps: assert) (x y: V) (e: expr):
     ~In y (x :: aoccur p ++ evar e) ->
     asub p x y = ps ->
-    WPCSL (mkhoare (lexists y (land (sand (hasval e y) true) ps)) (lookup x e) p)
+    WPCSL Gamma (mkhoare (lexists y (land (sand (hasval e y) true) ps)) (lookup x e) p)
 | wpc_mutation (p ps: assert) (x: V) (e: expr):
     asub_heap_update p x e = ps ->
-    WPCSL (mkhoare (land (hasvaldash x) ps) (mutation x e) p)
+    WPCSL Gamma (mkhoare (land (hasvaldash x) ps) (mutation x e) p)
 | wpc_new (p ps: assert) (x: V) (e: expr):
     ~In x (evar e) ->
     asub_heap_update p x e = ps ->
-    WPCSL (mkhoare (lforall x (limp (lnot (hasvaldash x)) ps)) (new x e) p)
+    WPCSL Gamma (mkhoare (lforall x (limp (lnot (hasvaldash x)) ps)) (new x e) p)
 | wpc_dispose (p ps: assert) (x: V):
     asub_heap_clear p x = ps ->
-    WPCSL (mkhoare (land (hasvaldash x) ps) (dispose x) p).
+    WPCSL Gamma (mkhoare (land (hasvaldash x) ps) (dispose x) p)
+| wpc_conseq (p pp q qq: assert) (x: program):
+    Gamma (limp pp p) -> WPCSL Gamma (mkhoare p x q) -> Gamma (limp q qq) ->
+    WPCSL Gamma (mkhoare pp x qq).
 
 End Language.
 

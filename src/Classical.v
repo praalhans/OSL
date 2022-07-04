@@ -884,13 +884,21 @@ Corollary WPCSL_soundness_dispose (p: assert) (x: V):
     strong_partial_correct (mkhoare (land (hasvaldash x) ps) (dispose x) p).
 Admitted.
 
-Theorem WPCSL_soundness: forall pSq, WPCSL pSq -> strong_partial_correct pSq.
+Proposition WPCSL_soundness_conseq (p pp q qq: assert) (x: program):
+  validity (limp pp p) -> validity (limp q qq) -> strong_partial_correct (mkhoare p x q) ->
+  strong_partial_correct (mkhoare pp x qq).
+intros.
+Admitted.
+
+Theorem WPCSL_soundness (Gamma: assert -> Prop) (O: forall p, Gamma p -> validity p):
+  forall pSq, WPCSL Gamma pSq -> strong_partial_correct pSq.
 intros. induction H.
 apply WPCSL_soundness_basic; assumption.
 apply WPCSL_soundness_lookup; assumption.
 apply WPCSL_soundness_mutation; assumption.
 apply WPCSL_soundness_new; assumption.
 apply WPCSL_soundness_dispose; assumption.
+apply O in g. apply O in g0. eapply WPCSL_soundness_conseq. apply g. apply g0. assumption.
 Qed.
 
 End Classical.
