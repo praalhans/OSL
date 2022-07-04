@@ -497,6 +497,47 @@ Proposition heap_update_substitution_lemma_p5 (h h1 h2: heap) (k v: Z):
   Partition (heap_update h k v) h1 h2 ->
   (exists h1', Partition h h1' h2 /\ h1 = heap_update h1' k v /\ ~dom h2 k) \/
   (exists h2', Partition h h1 h2' /\ h2 = heap_update h2' k v /\ ~dom h1 k).
+intros.
+pose proof (heap_update_dom1 h k v); pose proof (Partition_dom_split _ _ _ _ H H0); destruct H1.
+- left. remember (h k); destruct o.
+  + exists (heap_update h1 k z).
+    admit.
+  + exists (heap_clear h1 k).
+    pose proof (Partition_dom_right _ _ _ k H H0 H1).
+    assert (h1 k = v). { pose proof (Partition_spec1 _ _ _ H k H1).
+    rewrite heap_update_spec1 in H3. inversion H3. reflexivity. }
+    split.
+    pose proof (Partition_intro (heap_clear h1 k) h2). destruct H4.
+    intros. intro. destruct H4.
+    destruct (Z.eq_dec k0 k). rewrite e in H4.
+    eapply heap_clear_dom1. apply H4.
+    rewrite heap_clear_dom2 in H4.
+    eapply Partition_spec4. apply H. split. apply H4. apply H5.
+    intro. apply n. auto.
+    pose proof (heap_ext h x).
+    rewrite H5. assumption. clear H5. intro.
+    destruct (Z.eq_dec n k).
+    rewrite e. rewrite <- Heqo.
+    symmetry. eapply Partition_spec3. apply H4.
+    apply heap_clear_dom1. assumption.
+    rewrite <- heap_update_spec2 with (k := k) (v := v); auto.
+    destruct (dom_dec h2 n).
+    rewrite Partition_spec2 with (h1 := h1) (h2 := h2); try assumption.
+    symmetry. eapply Partition_spec2. apply H4. assumption.
+    destruct (dom_dec h1 n).
+    rewrite Partition_spec1 with (h1 := h1) (h2 := h2); auto.
+    symmetry. rewrite <- (heap_clear_spec2 h1 k); auto.
+    erewrite Partition_spec1. reflexivity. apply H4.
+    apply heap_clear_dom2; auto.
+    rewrite Partition_spec3 with (h1 := h1) (h2 := h2); auto.
+    rewrite Partition_spec3 with (h1 := heap_clear h1 k) (h2 := h2); auto.
+    rewrite heap_clear_dom2; auto.
+    split.
+    apply heap_ext; intro. destruct (Z.eq_dec k n).
+    rewrite <- e. rewrite heap_update_spec1. rewrite H3. reflexivity.
+    rewrite heap_update_spec2; auto. rewrite heap_clear_spec2; auto.
+    assumption.
+- admit.
 Admitted.
 
 Proposition heap_update_substitution_lemma_p6 (h h' h'': heap) (k v: Z):
