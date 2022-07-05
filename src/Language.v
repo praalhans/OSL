@@ -917,7 +917,7 @@ Inductive WPCSL (Gamma: assert -> Prop): hoare -> Set :=
 | wpc_lookup (p ps: assert) (x y: V) (e: expr):
     ~In y (x :: aoccur p ++ evar e) ->
     asub p x y = ps ->
-    WPCSL Gamma (mkhoare (lexists y (land (sand (hasval e y) true) ps)) (lookup x e) p)
+    WPCSL Gamma (mkhoare (lexists y (land (hasval e y) ps)) (lookup x e) p)
 | wpc_mutation (p ps: assert) (x: V) (e: expr):
     asub_heap_update p x e = ps ->
     WPCSL Gamma (mkhoare (land (hasvaldash x) ps) (mutation x e) p)

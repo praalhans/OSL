@@ -119,6 +119,11 @@ Proposition satisfy_lforall (h: heap) (s: store) (x: V) (p: assert):
 simpl. tauto.
 Qed.
 
+Proposition satisfy_lexists (h: heap) (s: store) (x: V) (p: assert):
+  satisfy h s (lexists x p) <-> ~forall v, ~satisfy h (store_update s x v) p.
+simpl. tauto.
+Qed.
+
 Proposition satisfy_equals (h: heap) (s: store) (e0 e1: expr):
   satisfy h s (equals e0 e1) <-> e0 s = e1 s.
 simpl. destruct (Z.eq_dec (eval e0 s) (eval e1 s)).
@@ -1304,13 +1309,59 @@ Qed.
 Corollary WPCSL_soundness_basic (p: assert) (x: V) (e: expr):
   forall ps, asub p x e = Some ps ->
     strong_partial_correct (mkhoare ps (basic x e) p).
-Admitted.
+intros. intro. intros. split.
+intro. inversion H1. intros. inversion H1. rewrite <- H7.
+rewrite <- store_substitution_lemma. apply H0. assumption.
+Qed.
 
 Corollary WPCSL_soundness_lookup (p: assert) (x y: V) (e: expr):
   ~ In y (x :: aoccur p ++ evar e) ->
     forall ps, asub p x y = Some ps ->
-      strong_partial_correct (mkhoare (lexists y (land (sand (hasval e y) true) ps)) (lookup x e) p).
-Admitted.
+      strong_partial_correct (mkhoare (lexists y (land (hasval e y) ps)) (lookup x e) p).
+intros. intro. intros.
+split.
+- intro. inversion H2.
+  rewrite satisfy_lexists in H1.
+  apply H1. intros. intro.
+  rewrite satisfy_land in H8; destruct H8.
+  rewrite satisfy_hasval in H8.
+  simpl in H8. rewrite store_update_lookup_same in H8.
+  rewrite econd with (t := s) in H8. rewrite H8 in H4. inversion H4.
+  intro. intro. destruct (Nat.eq_dec x1 y).
+  exfalso. rewrite e1 in H10. apply H. right. apply in_or_app. auto.
+  rewrite store_update_lookup_diff; auto.
+- intros. inversion H2. rewrite <- H8.
+  rewrite satisfy_lexists in H1.
+  apply satisfy_stable. intro.
+  apply H1; clear H1. intros. intro. apply H10; clear H10.
+  rewrite satisfy_land in H1; destruct H1.
+  rewrite store_substitution_lemma in H10; [|apply H0].
+  simpl in H10. rewrite store_update_lookup_same in H10.
+  rewrite satisfy_hasval in H1. simpl in H1.
+  rewrite store_update_lookup_same in H1.
+  rewrite <- H8 in H4.
+  assert (e s = e (store_update s y v0)). {
+    apply econd. intro. intro. destruct (Nat.eq_dec x1 y). rewrite e1.
+    exfalso. rewrite e1 in H11. apply H. right. apply in_or_app. auto.
+    rewrite store_update_lookup_diff; auto. }
+  rewrite <- H11 in H1.
+  rewrite H1 in H4. inversion H4. rewrite H13 in H10.
+  assert (x <> y). {
+    intro. rewrite H12 in H. apply H. left. reflexivity. }
+  rewrite store_update_swap in H10; auto.
+  rewrite acond. apply H10.
+  intro. intro.
+  destruct (Nat.eq_dec x x1). rewrite e1.
+  rewrite store_update_lookup_same.
+  rewrite store_update_lookup_diff.
+  rewrite store_update_lookup_same; auto.
+  intro. apply H12. rewrite e1. rewrite H15. reflexivity.
+  rewrite store_update_lookup_diff; auto.
+  rewrite store_update_lookup_diff.
+  rewrite store_update_lookup_diff; auto.
+  intro. rewrite <- H15 in H14. apply H. right.
+  apply in_or_app. left. apply in_or_app. auto.
+Qed.
 
 Corollary WPCSL_soundness_mutation (p: assert) (x: V) (e: expr):
   forall ps, asub_heap_update p x e = Some ps ->
