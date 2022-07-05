@@ -879,33 +879,183 @@ Qed.
 Proposition heap_clear_substitution_lemma_p1 (h h1 h2: heap) (k: Z):
   Partition h h1 h2 ->
   Partition (heap_clear h k) (heap_clear h1 k) (heap_clear h2 k).
-Admitted.
+intros.
+pose proof (Partition_intro (heap_clear h1 k) (heap_clear h2 k)).
+destruct H0. intros. intro. destruct H0.
+destruct (Z.eq_dec k0 k).
+rewrite e in H0. eapply heap_clear_dom1. apply H0.
+rewrite heap_clear_dom2 in H0, H1; auto.
+eapply Partition_spec4. apply H. split. apply H0. apply H1.
+pose proof (heap_ext (heap_clear h k) x). destruct H1; auto.
+intros.
+destruct (Z.eq_dec n k).
+rewrite e. rewrite heap_clear_spec1. symmetry.
+eapply Partition_spec3. apply H0.
+apply heap_clear_dom1. apply heap_clear_dom1.
+rewrite heap_clear_spec2; auto.
+destruct (dom_dec h1 n).
+rewrite Partition_spec1 with (h1 := h1) (h2 := h2); auto.
+rewrite <- heap_clear_spec2 with (k := k); auto. symmetry.
+eapply Partition_spec1. apply H0.
+apply heap_clear_dom2; auto.
+destruct (dom_dec h2 n).
+rewrite Partition_spec2 with (h1 := h1) (h2 := h2); auto.
+rewrite <- heap_clear_spec2 with (k := k); auto.
+symmetry. eapply Partition_spec2. apply H0.
+apply heap_clear_dom2; auto.
+rewrite Partition_spec3 with (h1 := h1) (h2 := h2); auto.
+symmetry. eapply Partition_spec3. apply H0.
+rewrite heap_clear_dom2; auto.
+rewrite heap_clear_dom2; auto.
+Qed.
 
 Proposition heap_clear_substitution_lemma_p2 (h h1 h2: heap) (k: Z):
   Partition (heap_clear h k) h1 h2 ->
   exists h11 h22, Partition h h11 h22 /\ h1 = heap_clear h11 k /\ h2 = heap_clear h22 k.
-Admitted.
+intros.
+remember (h k); destruct o.
+- exists (heap_update h1 k z). exists h2.
+  split.
+  pose proof (Partition_intro (heap_update h1 k z) h2).
+  destruct H0. intros. intro. destruct H0.
+  destruct (Z.eq_dec k k0).
+  rewrite <- e in H1.
+  pose proof (Partition_spec2 _ _ _ H _ H1).
+  rewrite dom_spec in H1.
+  rewrite heap_clear_spec1 in H2; auto.
+  rewrite heap_update_dom2 in H0; auto.
+  eapply Partition_spec4. apply H. split. apply H0. apply H1.
+  pose proof (heap_ext x h). destruct H1; auto. intros.
+  destruct (Z.eq_dec k n).
+  rewrite <- e.
+  rewrite Partition_spec1 with (h1 := heap_update h1 k z) (h2 := h2); auto.
+  rewrite heap_update_spec1; auto.
+  apply heap_update_dom1.
+  destruct (dom_dec h1 n).
+  rewrite Partition_spec1 with (h1 := heap_update h1 k z) (h2 := h2); auto.
+  rewrite heap_update_spec2; auto.
+  symmetry. rewrite <- heap_clear_spec2 with (k := k); auto.
+  eapply Partition_spec1; auto. apply H.
+  apply heap_update_dom2; auto.
+  destruct (dom_dec h2 n).
+  rewrite Partition_spec2 with (h1 := heap_update h1 k z) (h2 := h2); auto.
+  symmetry. rewrite <- heap_clear_spec2 with (k := k); auto.
+  eapply Partition_spec2; auto. apply H.
+  rewrite Partition_spec3 with (h1 := heap_update h1 k z) (h2 := h2); auto.
+  symmetry. rewrite <- heap_clear_spec2 with (k := k); auto.
+  eapply Partition_spec3. apply H. auto. auto. rewrite heap_update_dom2; auto.
+  split.
+  apply heap_ext; intro.
+  destruct (Z.eq_dec n k). rewrite e. rewrite heap_clear_spec1.
+  remember (h1 k). destruct o; auto. exfalso.
+  pose proof (Partition_spec1 _ _ _ H k). destruct H0.
+  rewrite dom_spec. intro. rewrite <- Heqo0 in H0. inversion H0.
+  rewrite heap_clear_spec1 in Heqo0. inversion Heqo0.
+  rewrite heap_clear_spec2; auto.
+  rewrite heap_update_spec2; auto.
+  apply heap_ext; intro.
+  destruct (Z.eq_dec n k). rewrite e. rewrite heap_clear_spec1.
+  remember (h2 k). destruct o; auto. exfalso.
+  pose proof (Partition_spec2 _ _ _ H k). destruct H0.
+  rewrite dom_spec. intro. rewrite <- Heqo0 in H0. inversion H0.
+  rewrite heap_clear_spec1 in Heqo0. inversion Heqo0.
+  rewrite heap_clear_spec2; auto.
+- exists h1. exists h2.
+  split.
+  pose proof (Partition_intro h1 h2). destruct H0.
+  eapply Partition_spec4. apply H.
+  pose proof (heap_ext x h). destruct H1; auto. intro.
+  destruct (dom_dec h1 n).
+  rewrite Partition_spec1 with (h1 := h1) (h2 := h2); auto.
+  symmetry. rewrite <- heap_clear_spec2 with (k := k).
+  eapply Partition_spec1; auto. apply H.
+  intro. rewrite <- H2 in H1. pose proof (Partition_spec1 _ _ _ H k H1).
+  rewrite heap_clear_spec1 in H3. rewrite dom_spec in H1; auto.
+  destruct (dom_dec h2 n).
+  rewrite Partition_spec2 with (h1 := h1) (h2 := h2); auto.
+  symmetry. rewrite <- heap_clear_spec2 with (k := k).
+  eapply Partition_spec2; auto. apply H.
+  intro. rewrite <- H3 in H2. pose proof (Partition_spec2 _ _ _ H k H2).
+  rewrite heap_clear_spec1 in H4. rewrite dom_spec in H2; auto.
+  rewrite Partition_spec3 with (h1 := h1) (h2 := h2); auto.
+  destruct (Z.eq_dec n k). rewrite e; auto.
+  rewrite <- heap_clear_spec2 with (k := k); auto.
+  symmetry. eapply Partition_spec3. apply H. auto. auto.
+  split.
+  apply heap_clear_not_dom_eq. intro.
+  pose proof (Partition_dom_inv_left _ _ _ _ H H0).
+  eapply heap_clear_dom1. apply H1.
+  apply heap_clear_not_dom_eq. intro.
+  pose proof (Partition_dom_inv_right _ _ _ _ H H0).
+  eapply heap_clear_dom1. apply H1.
+Qed.
 
 Proposition heap_clear_substitution_lemma_p3 (h h': heap) (k0: Z):
   (forall k : Z, ~ (dom (heap_clear h k0) k /\ dom h' k)) ->
   forall k : Z, ~ (dom h k /\ dom (heap_clear h' k0) k).
-Admitted.
+intros. intro. destruct H0.
+destruct (Z.eq_dec k k0).
+rewrite e in H1.
+eapply heap_clear_dom1. apply H1.
+rewrite heap_clear_dom2 in H1; auto.
+eapply H. split; [|apply H1].
+rewrite heap_clear_dom2; auto.
+Qed.
 
 Proposition heap_clear_substitution_lemma_p4 (s: store) (y: V) (z: Z) (p: assert):
   ~In y (avar p) -> eq_restr (store_update s y z) s (avar p).
-Admitted.
+intro. intro. intro.
+destruct (Nat.eq_dec x y).
+exfalso. apply H. rewrite e in H0. auto.
+rewrite store_update_lookup_diff; auto.
+Qed.
 
 Proposition heap_clear_substitution_lemma_p5 (x y: V) (s s': store) (z: Z) (h: heap):
-  x <> y -> s' = store_update s y z -> h = heap_update (heap_clear h (s x)) (s' x) (y s').
-Admitted.
+  Some z = h (s x) -> s' = store_update s y z -> x <> y -> h = heap_update (heap_clear h (s x)) (s' x) (y s').
+intros.
+simpl. rewrite H0. clear dependent s'.
+rewrite store_update_lookup_same.
+rewrite store_update_lookup_diff; auto.
+apply heap_ext; intro.
+destruct (Z.eq_dec n (s x)).
+rewrite e.
+rewrite heap_update_spec1; auto.
+rewrite heap_update_spec2; auto.
+rewrite heap_clear_spec2; auto.
+Qed.
 
 Proposition heap_clear_substitution_lemma_p6 (x y: V) (s s': store) (z: Z) (h h' h'' hh: heap):
   Partition h'' (heap_clear h (s x)) h' ->
   Partition hh h (heap_clear h' (s x)) ->
-  s' = store_update s y z ->
+  Some z = h' (s x) ->
   x <> y ->
+  s' = store_update s y z ->
   h'' = heap_update hh (s' x) (y s').
-Admitted.
+intros. simpl. rewrite H3. clear dependent s'.
+rewrite store_update_lookup_same.
+rewrite store_update_lookup_diff; auto.
+apply heap_ext; intro.
+destruct (Z.eq_dec n (s x)).
+rewrite e.
+rewrite heap_update_spec1.
+rewrite Partition_spec2 with (h1 := heap_clear h (s x)) (h2 := h'); auto.
+rewrite dom_spec. intro. rewrite H3 in H1. inversion H1.
+rewrite heap_update_spec2; auto.
+destruct (dom_dec h n).
+rewrite Partition_spec1 with (h1 := heap_clear h (s x)) (h2 := h'); auto.
+rewrite heap_clear_spec2; auto.
+symmetry. eapply Partition_spec1. apply H0. auto.
+apply heap_clear_dom2; auto.
+destruct (dom_dec h' n).
+rewrite Partition_spec2 with (h1 := heap_clear h (s x)) (h2 := h'); auto.
+symmetry. rewrite Partition_spec2 with (h1 := h) (h2 := heap_clear h' (s x)); auto.
+rewrite heap_clear_spec2; auto.
+apply heap_clear_dom2; auto.
+rewrite Partition_spec3 with (h1 := heap_clear h (s x)) (h2 := h'); auto.
+symmetry. rewrite Partition_spec3 with (h1 := h) (h2 := heap_clear h' (s x)); auto.
+rewrite heap_clear_dom2; auto.
+rewrite heap_clear_dom2; auto.
+Qed.
 
 Proposition heap_clear_substitution_lemma_p7 (h h' h'' hh: heap) (k: Z):
   Partition h'' (heap_clear h k) h' -> ~dom h' k ->
@@ -1014,9 +1164,9 @@ induction p; intros.
       rewrite acond with (t := s') in H5.
       pose proof (heap_update_substitution_lemma (heap_clear h' (s x)) s' p1 x y x1 H0).
       assert (h' = heap_update (heap_clear h' (s x)) (s' x) (y s')). {
-        eapply heap_clear_substitution_lemma_p5. intro. rewrite H7 in Heqy.
+        eapply heap_clear_substitution_lemma_p5. apply Heqo. apply Heqs'. intro. rewrite H7 in Heqy.
         pose proof (fresh_notIn (y :: aoccur p1 ++ aoccur p2)). rewrite <- Heqy in H8.
-        apply H8. left. auto. apply Heqs'. }
+        apply H8. left. auto. }
       rewrite <- H7 in H6. apply H6 in H5.
       simpl in H3.
       pose proof (Partition_intro h (heap_clear h' (s x))); destruct H8.
@@ -1030,9 +1180,9 @@ induction p; intros.
       rewrite acond with (t := s) in H9.
       assert (h'' = heap_update x3 (s' x) (y s')). {
         eapply heap_clear_substitution_lemma_p6. apply H4.
-        apply H8. apply Heqs'. intro. rewrite H11 in Heqy.
+        apply H8. apply Heqo. intro. rewrite H11 in Heqy.
         pose proof (fresh_notIn (y :: aoccur p1 ++ aoccur p2)). rewrite <- Heqy in H12.
-        apply H12. left. auto. }
+        apply H12. left. auto. apply Heqs'. }
       rewrite H11. assumption.
       rewrite Heqs'.
       apply heap_clear_substitution_lemma_p4.

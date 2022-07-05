@@ -108,6 +108,16 @@ apply iff_refl.
 assumption.
 Qed.
 
+Proposition heap_clear_not_dom_eq (h: heap) (k: Z):
+  ~dom h k -> h = heap_clear h k.
+intros. apply heap_ext; intro.
+destruct (Z.eq_dec n k).
+rewrite e. rewrite heap_clear_spec1.
+rewrite dom_spec in H. destruct (h k); auto.
+exfalso. apply H. intro. inversion H0.
+rewrite heap_clear_spec2; auto.
+Qed.
+
 Proposition Partition_lunique (h h' h1 h2: heap):
   Partition h h1 h2 /\ Partition h' h1 h2 -> h = h'.
 intro; destruct H.
@@ -166,6 +176,24 @@ intros.
 destruct (dom_dec h2 x).
 exfalso. eapply Partition_spec4. apply H. split. apply H1. apply H2.
 assumption.
+Qed.
+
+Proposition Partition_dom_inv_left (h h1 h2: heap) (x: Z):
+  Partition h h1 h2 -> dom h1 x -> dom h x.
+intros. destruct (dom_dec h x); auto.
+exfalso.
+pose proof (Partition_spec1 _ _ _ H x H0).
+rewrite dom_spec in *. rewrite H2 in H1.
+auto.
+Qed.
+
+Proposition Partition_dom_inv_right (h h1 h2: heap) (x: Z):
+  Partition h h1 h2 -> dom h2 x -> dom h x.
+intros. destruct (dom_dec h x); auto.
+exfalso.
+pose proof (Partition_spec2 _ _ _ H x H0).
+rewrite dom_spec in *. rewrite H2 in H1.
+auto.
 Qed.
 
 End HeapFacts.
