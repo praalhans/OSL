@@ -1366,24 +1366,76 @@ Qed.
 Corollary WPCSL_soundness_mutation (p: assert) (x: V) (e: expr):
   forall ps, asub_heap_update p x e = Some ps ->
     strong_partial_correct (mkhoare (land (hasvaldash x) ps) (mutation x e) p).
-Admitted.
+intros. intro. intros.
+rewrite satisfy_land in H0; destruct H0.
+rewrite satisfy_hasvaldash in H0.
+split.
+- intro.
+  inversion H2. apply H4. assumption.
+- intros. inversion H2.
+  rewrite <- H9.
+  rewrite <- heap_update_substitution_lemma.
+  apply H1. assumption.
+Qed.
 
 Corollary WPCSL_soundness_new (p: assert) (x: V) (e: expr):
   ~ In x (evar e) ->
   forall ps, asub_heap_update p x e = Some ps ->
     strong_partial_correct (mkhoare (lforall x (limp (lnot (hasvaldash x)) ps)) (new x e) p).
-Admitted.
+intros. intro. intros.
+rewrite satisfy_lforall in H1.
+split.
+- intro. inversion H2.
+- intros. inversion H2.
+  specialize H1 with n.
+  rewrite satisfy_limp in H1.
+  assert (e s = e (store_update s x n)). {
+    apply econd. intro. intros. destruct (Nat.eq_dec x1 x).
+    rewrite e1 in H10. exfalso. apply H. auto.
+    rewrite store_update_lookup_diff; auto. }
+  rewrite H10.
+  assert (n = store_update s x n x). {
+    rewrite store_update_lookup_same. reflexivity. }
+  rewrite H11 at 1.
+  rewrite <- heap_update_substitution_lemma.
+  apply H1.
+  rewrite satisfy_lnot.
+  rewrite satisfy_hasvaldash. rewrite <- H11. assumption.
+  assumption.
+Qed.
 
 Corollary WPCSL_soundness_dispose (p: assert) (x: V):
   forall ps, asub_heap_clear p x = Some ps ->
     strong_partial_correct (mkhoare (land (hasvaldash x) ps) (dispose x) p).
-Admitted.
+intros. intro. intros.
+rewrite satisfy_land in H0; destruct H0.
+rewrite satisfy_hasvaldash in H0.
+split.
+- intro. inversion H2. apply H5. assumption.
+- intros. inversion H2.
+  rewrite <- H8.
+  rewrite <- heap_clear_substitution_lemma. apply H1.
+  assumption.
+Qed.
 
 Proposition WPCSL_soundness_conseq (p pp q qq: assert) (x: program):
   validity (limp pp p) -> validity (limp q qq) -> strong_partial_correct (mkhoare p x q) ->
   strong_partial_correct (mkhoare pp x qq).
 intros.
-Admitted.
+intro. intros.
+unfold strong_partial_correct in H1.
+specialize H1 with h s.
+unfold validity in *.
+specialize H with h s.
+rewrite satisfy_limp in H.
+split.
+- destruct H1. apply H; assumption. assumption.
+- intros.
+  specialize H0 with h' s'.
+  rewrite satisfy_limp in H0.
+  destruct H1. apply H; assumption.
+  apply H0. apply H4. assumption.
+Qed.
 
 Theorem WPCSL_soundness (Gamma: assert -> Prop) (O: forall p, Gamma p -> validity p):
   forall pSq, WPCSL Gamma pSq -> strong_partial_correct pSq.
@@ -1397,3 +1449,8 @@ apply O in g. apply O in g0. eapply WPCSL_soundness_conseq. apply g. apply g0. a
 Qed.
 
 End Classical.
+
+(* To show the used axioms in our development, we make everything concrete: *)
+Module ClassicalIHeap := Classical IHeap.
+Import ClassicalIHeap.
+Print Assumptions WPCSL_soundness.
