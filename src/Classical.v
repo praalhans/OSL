@@ -1904,7 +1904,37 @@ Corollary SPCSL_strongest_mutation (p q: assert) (x y: V) (e: expr):
   ~In y (x :: aoccur p ++ evar e ++ aoccur q) ->
   forall ps, asub_heap_update p x y = Some ps ->
   validity (limp (land (lexists y ps) (hasval x e)) q).
-Admitted.
+intros. intro. intros.
+rewrite satisfy_limp; intro.
+rewrite satisfy_land in H2; destruct H2.
+rewrite satisfy_hasval in H3.
+eapply satisfy_lexists_elim. apply H2. intros; clear H2.
+rewrite heap_update_substitution_lemma in H4; [|apply H1].
+assert (x <> y). intro. apply H0. left; auto.
+rewrite store_update_lookup_diff in H4; auto. simpl in H4.
+rewrite store_update_lookup_same in H4.
+unfold strong_partial_correct in H.
+apply H in H4; clear H; destruct H4.
+pose proof (step_mutation x e (heap_update h (s x) n) (store_update s y n)).
+assert (dom (heap_update h (s x) n) (store_update s y n x)).
+rewrite store_update_lookup_diff; auto.
+apply heap_update_dom1. apply H5 in H6; clear H5.
+apply H4 in H6; clear H4.
+rewrite store_update_lookup_diff in H6; auto.
+assert (e s = e (store_update s y n)).
+apply econd. intro. intro. destruct (Nat.eq_dec x0 y).
+rewrite e0 in H4. exfalso. apply H0. right. apply in_or_app. right. apply in_or_app; auto.
+rewrite store_update_lookup_diff; auto.
+rewrite <- H4 in H6.
+rewrite heap_update_collapse in H6.
+rewrite heap_update_id in H6; auto.
+rewrite acond.
+apply H6.
+intro. intro. destruct (Nat.eq_dec x0 y).
+rewrite e0 in H5. exfalso. apply H0. right. apply in_or_app. right.
+apply in_or_app. right. apply in_or_app; auto.
+rewrite store_update_lookup_diff; auto.
+Qed.
 
 Corollary SPCSL_strongest_new (p q: assert) (x y: V) (e: expr):
   ~ In x (evar e) ->
@@ -1913,14 +1943,70 @@ Corollary SPCSL_strongest_new (p q: assert) (x y: V) (e: expr):
   forall ps, asub p x y = Some ps ->
   forall pss, asub_heap_clear (lexists y ps) x = Some pss ->
   validity (limp (land pss (hasval x e)) q).
-Admitted.
+intros. intro. intros.
+rewrite satisfy_limp; intro.
+rewrite satisfy_land in H4; destruct H4.
+rewrite satisfy_hasval in H5.
+rewrite heap_clear_substitution_lemma in H4; [|apply H3].
+eapply satisfy_lexists_elim. apply H4. clear H4; intros.
+rewrite store_substitution_lemma in H4; [|apply H2].
+simpl in H4. rewrite store_update_lookup_same in H4.
+unfold strong_partial_correct in H0. apply H0 in H4; clear H0.
+destruct H4.
+pose proof (heap_clear_update_collapse h (s x) (e s) H5).
+pose proof (step_new x e (heap_clear h (s x)) (store_update (store_update s y n) x n) (s x)).
+assert (~ dom (heap_clear h (s x)) (s x)).
+  apply heap_clear_dom1. apply H7 in H8; clear H7.
+apply H4 in H8; clear H4.
+rewrite heap_clear_update_collapse in H8.
+rewrite store_update_collapse in H8.
+rewrite store_update_swap in H8.
+rewrite store_update_id in H8.
+rewrite acond. apply H8.
+intro. intro. destruct (Nat.eq_dec x0 y).
+rewrite e0 in H4. exfalso. apply H1. right. apply in_or_app.
+right. apply in_or_app. right. apply in_or_app; auto.
+rewrite store_update_lookup_diff; auto.
+intro. apply H1. left; auto.
+simpl in H5. rewrite H5.
+rewrite econd with (t := (store_update (store_update s y n) x n)).
+reflexivity. intro. intro.
+destruct (Nat.eq_dec x0 x).
+exfalso. rewrite e0 in H4. apply H; auto.
+rewrite store_update_lookup_diff; auto.
+destruct (Nat.eq_dec x0 y).
+exfalso. rewrite e0 in H4. apply H1. right. apply in_or_app. right. apply in_or_app; auto.
+rewrite store_update_lookup_diff; auto.
+Qed.
 
 Corollary SPCSL_strongest_dispose (p q: assert) (x y: V):
   strong_partial_correct (mkhoare p (dispose x) q) ->
   ~ In y (x :: aoccur p ++ aoccur q) ->
   forall ps, asub_heap_update p x y = Some ps ->
   validity (limp (land (lexists y ps) (lnot (hasvaldash x))) q).
-Admitted.
+intros. intro. intros.
+rewrite satisfy_limp; intro.
+rewrite satisfy_land in H2; destruct H2.
+rewrite satisfy_lnot_hasvaldash in H3.
+eapply satisfy_lexists_elim. apply H2. intros; clear H2.
+rewrite heap_update_substitution_lemma in H4; [|apply H1].
+simpl in H4. rewrite store_update_lookup_same in H4.
+assert (x <> y). intro. apply H0. left; auto.
+rewrite store_update_lookup_diff in H4; auto.
+unfold strong_partial_correct in H.
+apply H in H4; clear H; destruct H4.
+pose proof (step_dispose x (heap_update h (s x) n) (store_update s y n)).
+assert (dom (heap_update h (s x) n) (store_update s y n x)).
+rewrite store_update_lookup_diff; auto.
+apply heap_update_dom1. apply H5 in H6; clear H5.
+apply H4 in H6; clear H4.
+rewrite store_update_lookup_diff in H6; auto.
+rewrite heap_update_clear_collapse in H6; auto.
+rewrite acond. apply H6. intro. intro.
+destruct (Nat.eq_dec x0 y).
+exfalso. rewrite e in H4. apply H0. right. apply in_or_app. right. apply in_or_app; auto.
+rewrite store_update_lookup_diff; auto.
+Qed.
 
 Theorem SPCSL_completeness (Gamma: assert -> Prop) (O: forall p, validity p -> Gamma p):
   forall pSq, restrict_pre pSq -> strong_partial_correct pSq -> SPCSL Gamma pSq.
