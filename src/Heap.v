@@ -90,6 +90,53 @@ rewrite dom_spec in H0. assumption.
 assumption.
 Qed.
 
+Proposition heap_update_collapse (h: heap) (k v v': Z):
+  heap_update (heap_update h k v) k v' = heap_update h k v'.
+apply heap_ext; intro.
+destruct (Z.eq_dec k n).
+rewrite <- e.
+rewrite heap_update_spec1.
+rewrite heap_update_spec1.
+reflexivity.
+rewrite heap_update_spec2; auto.
+rewrite heap_update_spec2; auto.
+rewrite heap_update_spec2; auto.
+Qed.
+
+Proposition heap_update_id (h: heap) (k v: Z):
+  h k = Some v -> heap_update h k v = h.
+intros.
+apply heap_ext; intro.
+destruct (Z.eq_dec k n).
+rewrite <- e.
+rewrite heap_update_spec1; auto.
+rewrite heap_update_spec2; auto.
+Qed.
+
+Proposition heap_update_clear_collapse (h: heap) (k v: Z):
+  ~dom h k -> heap_clear (heap_update h k v) k = h.
+intros.
+apply heap_ext; intro.
+destruct (Z.eq_dec k n).
+rewrite <- e.
+rewrite heap_clear_spec1.
+rewrite dom_spec in H.
+destruct (h k); auto. exfalso. apply H. intro. inversion H0.
+rewrite heap_clear_spec2; auto.
+rewrite heap_update_spec2; auto.
+Qed.
+
+Proposition heap_clear_update_collapse (h: heap) (k v: Z):
+  h k = Some v -> heap_update (heap_clear h k) k v = h.
+intros.
+apply heap_ext; intro.
+destruct (Z.eq_dec k n).
+rewrite <- e.
+rewrite heap_update_spec1; auto.
+rewrite heap_update_spec2; auto.
+rewrite heap_clear_spec2; auto.
+Qed.
+
 Proposition heap_clear_dom1 (h: heap) (k: Z):
   ~dom (heap_clear h k) k.
 intro.

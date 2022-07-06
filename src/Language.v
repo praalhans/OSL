@@ -987,6 +987,7 @@ Inductive SPCSL (Gamma: assert -> Prop): hoare -> Prop :=
     asub_heap_update p x y = Some ps ->
     SPCSL Gamma (mkhoare (land p (hasvaldash x)) (mutation x e) (land (lexists y ps) (hasval x e)))
 | spc_new (p ps pss: assert) (x y: V) (e: expr):
+    ~In x (evar e) ->
     ~In y (x :: aoccur p ++ evar e) ->
     asub p x y = Some ps ->
     asub_heap_clear (lexists y ps) x = Some pss ->

@@ -1276,7 +1276,7 @@ induction p; intros.
       rewrite satisfy_land in H4; destruct H4.
       rewrite satisfy_lnot in H5; rewrite satisfy_hasvaldash in H5.
       pose proof (Partition_intro (heap_clear h (s x)) h'). destruct H6. {
-      intro. intro. destruct H6. destruct (Z.eq_dec (s x) k). apply H5.
+      intro. intro. destruct H6. destruct (Z.eq_dec (s x) k). apply H5. simpl.
       rewrite e. assumption. rewrite heap_clear_dom2 in H6.
       eapply Partition_spec4. apply H3. split. apply H6. apply H7. assumption. }
       rewrite satisfy_simp in H2.
@@ -1429,7 +1429,7 @@ split.
   rewrite <- heap_update_substitution_lemma.
   apply H1.
   rewrite satisfy_lnot.
-  rewrite satisfy_hasvaldash. rewrite <- H11. assumption.
+  rewrite satisfy_hasvaldash. simpl. rewrite <- H11. assumption.
   assumption.
 Qed.
 
@@ -1707,20 +1707,112 @@ Corollary SPCSL_soundness_mutation (p: assert) (x y: V) (e: expr):
   ~ In y (x :: aoccur p ++ evar e) ->
   forall ps, asub_heap_update p x y = Some ps ->
   strong_partial_correct (mkhoare (land p (hasvaldash x)) (mutation x e) (land (lexists y ps) (hasval x e))).
-Admitted.
+intros. intro. intros.
+rewrite satisfy_land in H1; destruct H1.
+rewrite satisfy_hasvaldash in H2.
+split. intro. inversion H3. apply H5; auto.
+intros. inversion H3. rewrite <- H10 in *.
+clear dependent s'. clear dependent h'.
+clear dependent x0. clear dependent e0.
+clear dependent h0. clear dependent s0.
+clear H2.
+rewrite satisfy_land. split.
+- remember (h (s x)). destruct o.
+  apply satisfy_lexists_intro with (n := z).
+  pose proof (heap_update_substitution_lemma (heap_update h (s x) (e s)) (store_update s y z)
+      p x y ps H0).
+  rewrite H2; clear H2.
+  rewrite store_update_lookup_diff. simpl.
+  rewrite store_update_lookup_same.
+  rewrite heap_update_collapse.
+  rewrite heap_update_id; auto.
+  rewrite acond. apply H1.
+  intro. intro. destruct (Nat.eq_dec x0 y).
+  exfalso. rewrite e0 in H2. apply H. right. apply in_or_app. left. apply in_or_app. auto.
+  rewrite store_update_lookup_diff; auto.
+  intro. apply H. left. auto.
+  exfalso. apply dom_spec in H5. apply H5; auto.
+- rewrite satisfy_hasval.
+  rewrite heap_update_spec1. reflexivity.
+Qed.
 
 Corollary SPCSL_soundness_new (p: assert) (x y: V) (e: expr):
+  ~ In x (evar e) ->
   ~ In y (x :: aoccur p ++ evar e) ->
   forall ps, asub p x y = Some ps ->
   forall pss, asub_heap_clear (lexists y ps) x = Some pss ->
   strong_partial_correct (mkhoare p (new x e) (land pss (hasval x e))).
-Admitted.
+intros. intro. intros.
+split. intro. inversion H4.
+intros. inversion H4.
+clear dependent s'. clear dependent h'.
+clear dependent x0. clear dependent e0.
+clear dependent h0. clear dependent s0.
+rewrite satisfy_land. apply and_comm. split.
+rewrite satisfy_hasval. simpl.
+rewrite store_update_lookup_same.
+rewrite heap_update_spec1.
+assert (e s = e (store_update s x n)).
+apply econd. intro. intro. destruct (Nat.eq_dec x x0).
+exfalso. rewrite e0 in H. apply H; auto.
+rewrite store_update_lookup_diff; auto.
+rewrite H4. reflexivity.
+simpl in H2. destruct (Nat.eq_dec y x). inversion H2.
+apply option_app_elim in H2; destruct H2; destruct H2.
+inversion H4. clear dependent pss.
+apply satisfy_lexists_intro with (n := s x).
+rewrite heap_clear_substitution_lemma; [| apply H2].
+assert (x <> y). intro. apply H0. left; auto.
+rewrite store_update_lookup_diff; auto.
+rewrite store_update_lookup_same.
+rewrite heap_update_clear_collapse; auto.
+rewrite store_update_swap; auto.
+rewrite acond with (t := store_update s y (s x)).
+rewrite store_substitution_lemma; [|apply H1].
+simpl.
+rewrite store_update_lookup_same.
+rewrite store_update_swap; auto.
+rewrite store_update_id.
+rewrite acond. apply H3.
+intro. intro. destruct (Nat.eq_dec x1 y).
+rewrite e0 in H5. exfalso. apply H0. right.
+apply in_or_app. left. apply in_or_app. auto.
+rewrite store_update_lookup_diff; auto.
+intro. intro. destruct (Nat.eq_dec x1 x).
+rewrite e0 in H5.
+exfalso. eapply asub_notInVar; [| apply H1|apply H5].
+simpl. intro. destruct H7; auto.
+rewrite store_update_lookup_diff; auto.
+Qed.
 
 Corollary SPCSL_soundness_dispose (p: assert) (x y: V):
   ~ In y (x :: aoccur p) ->
   forall ps, asub_heap_update p x y = Some ps ->
   strong_partial_correct (mkhoare (land p (hasvaldash x)) (dispose x) (land (lexists y ps) (lnot (hasvaldash x)))).
-Admitted.
+intros. intro. intros.
+rewrite satisfy_land in H1; destruct H1.
+rewrite satisfy_hasvaldash in H2; simpl in H2.
+split. intro. inversion H3; auto.
+intros. inversion H3. rewrite <- H9.
+clear dependent s'. clear dependent h'.
+clear dependent x0. clear dependent h0. clear dependent s0.
+rewrite satisfy_land. rewrite and_comm. split.
+rewrite satisfy_lnot_hasvaldash.
+apply heap_clear_dom1.
+remember (h (s x)); destruct o.
+apply satisfy_lexists_intro with (n := z).
+rewrite heap_update_substitution_lemma; [|apply H0].
+assert (x <> y). intro. apply H. left; auto.
+simpl.
+rewrite store_update_lookup_same.
+rewrite store_update_lookup_diff; auto.
+rewrite heap_clear_update_collapse; auto.
+rewrite acond. apply H1.
+intro. intro. destruct (Nat.eq_dec y x0).
+rewrite <- e in H4. exfalso. apply H. right. apply in_or_app. auto.
+rewrite store_update_lookup_diff; auto.
+rewrite dom_spec in H2. exfalso. auto.
+Qed.
 
 Theorem SPCSL_soundness (Gamma: assert -> Prop) (O: forall p, Gamma p -> validity p):
   forall pSq, SPCSL Gamma pSq -> strong_partial_correct pSq.
@@ -1728,7 +1820,7 @@ intros. induction H.
 - apply SPCSL_soundness_basic; assumption.
 - apply SPCSL_soundness_lookup; assumption.
 - apply SPCSL_soundness_mutation; assumption.
-- eapply SPCSL_soundness_new. apply H. apply H0. assumption.
+- eapply SPCSL_soundness_new. apply H. apply H0. apply H1. assumption.
 - apply SPCSL_soundness_dispose; assumption.
 - apply O in H. apply O in H1.
   eapply soundness_conseq.
