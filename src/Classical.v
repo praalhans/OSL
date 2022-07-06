@@ -148,36 +148,36 @@ rewrite H in H0. inversion H0.
 assumption.
 Qed.
 
-Proposition satisfy_hasvaldash (h: heap) (s: store) (x: V):
-  satisfy h s (hasvaldash x) <-> dom h (s x).
+Proposition satisfy_hasvaldash (h: heap) (s: store) (e: expr):
+  satisfy h s (hasvaldash e) <-> dom h (e s).
 split; intro.
 - unfold hasvaldash in H.
-  remember (fresh (evar x)).
+  remember (fresh (evar e)).
   simpl in H.
-  destruct (dom_dec h (s x)). assumption.
+  destruct (dom_dec h (e s)). assumption.
   exfalso.
   apply H; clear H; intro; intro; destruct H.
-  rewrite store_update_lookup_same in H1.
-  rewrite store_update_lookup_diff in H1.
-  apply H0. apply dom_spec. rewrite H1. intro. inversion H2.
-  intro.
-  rewrite H2 in Heqv.
-  simpl in Heqv.
-  pose proof (fresh_notIn (x :: nil)).
-  rewrite <- Heqv in H3.
-  apply H3. left. reflexivity.
+  assert (e s = e (store_update s v v0)).
+  apply econd. intro. intro.
+  destruct (Nat.eq_dec x v). rewrite e0 in H2. rewrite Heqv in H2.
+  exfalso. eapply fresh_notIn. apply H2.
+  rewrite store_update_lookup_diff; auto.
+  rewrite <- H2 in H. apply H0. assumption.
 - simpl. intro.
-  remember (h (s x)). destruct o.
+  remember (h (e s)). destruct o.
+  assert (e s = e (store_update s (fresh (evar e)) z)). {
+    apply econd. intro. intro.
+    rewrite store_update_lookup_diff; auto. intro.
+    rewrite <- H2 in H1. eapply fresh_notIn. apply H1. }
   specialize H0 with z.
   apply H0; clear H0.
-  assert (store_update s (fresh (x :: nil)) z x = s x).
-  rewrite store_update_lookup_diff. reflexivity.
-  intro. pose proof (fresh_notIn (x :: nil)).
-  apply H1. rewrite H0. left. reflexivity.
-  rewrite H0.
+  rewrite <- H1.
   rewrite store_update_lookup_same.
-  split; auto.
-  eapply dom_spec. apply H. symmetry; assumption.
+  split.
+  apply dom_spec. intro.
+  rewrite H0 in Heqo. inversion Heqo.
+  auto.
+  apply dom_spec in H. apply H; auto.
 Qed.
 
 Proposition satisfy_lnot_hasvaldash (h: heap) (s: store) (x: V):
@@ -290,7 +290,7 @@ intros.
 inversion H0.
 rewrite satisfy_lforall in H.
 specialize (H n).
-rewrite satisfy_hasvaldash in H.
+rewrite satisfy_hasvaldash in H. simpl in H.
 rewrite store_update_lookup_same in H.
 exfalso. apply H2. assumption.
 Qed.
@@ -1665,7 +1665,43 @@ Corollary SPCSL_soundness_lookup (p: assert) (x y: V) (e: expr):
   ~ In y (x :: aoccur p ++ evar e) ->
   forall ps, asub p x y = Some ps ->
   strong_partial_correct (mkhoare (land p (hasvaldash e)) (lookup x e) (lexists y (land ps (hasval (esub e x y) x)))).
-Admitted.
+intros. intro. intros.
+rewrite satisfy_land in H1; destruct H1.
+rewrite satisfy_hasvaldash in H2.
+split. intro. inversion H3. apply dom_spec in H2. apply H2; auto.
+intros. inversion H3. rewrite <- H9. clear dependent s'.
+apply satisfy_lexists_intro with (n := s x).
+assert (x <> y). intro. apply H. left; auto.
+rewrite satisfy_land; split.
+- rewrite store_update_swap; auto.
+  pose proof (store_substitution_lemma h (store_update s y (s x)) p x y ps H0).
+  simpl in H10.
+  rewrite store_update_lookup_same in H10.
+  rewrite store_update_swap in H10; auto.
+  rewrite store_update_id in H10.
+  rewrite acond with (t := (store_update s y (s x))).
+  rewrite H10.
+  rewrite acond with (t := s). auto.
+  intro. intro. destruct (Nat.eq_dec x1 y).
+  exfalso. apply H. right. apply in_or_app. left. apply in_or_app. rewrite e1 in H11; auto.
+  rewrite store_update_lookup_diff; auto.
+  intro. intro. destruct (Nat.eq_dec x1 x).
+  exfalso. rewrite e1 in H11. eapply asub_notInVar; [|apply H0|apply H11].
+  simpl. intro. destruct H12; auto.
+  rewrite store_update_lookup_diff; auto.
+- rewrite satisfy_hasval. simpl.
+  rewrite store_update_lookup_same.
+  rewrite store_update_lookup_diff; auto.
+  rewrite store_update_lookup_same.
+  rewrite store_update_swap.
+  rewrite store_update_collapse.
+  rewrite store_update_id.
+  assert (e s = e (store_update s y (s x))).
+  apply econd. intro. intro. destruct (Nat.eq_dec x1 y).
+  exfalso. rewrite e1 in H10. apply H. right. apply in_or_app; auto.
+  rewrite store_update_lookup_diff; auto.
+  rewrite <- H10. rewrite H9. auto. auto.
+Qed.
 
 Corollary SPCSL_soundness_mutation (p: assert) (x y: V) (e: expr):
   ~ In y (x :: aoccur p ++ evar e) ->
