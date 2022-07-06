@@ -943,21 +943,34 @@ Inductive WPCSL (Gamma: assert -> Prop): hoare -> Prop :=
     Gamma (limp pp p) -> WPCSL Gamma (mkhoare p x q) -> Gamma (limp q qq) ->
     WPCSL Gamma (mkhoare pp x qq).
 
+(* =============================================== *)
+(* Strongest postcondition axiomatization (SP-CSL) *)
+(* =============================================== *)
+
+Inductive SPCSL (Gamma: assert -> Prop): hoare -> Prop :=
+| spc_basic (p ps: assert) (x y: V) (e: expr):
+    ~In y (x :: aoccur p ++ evar e) ->
+    asub p x y = Some ps ->
+    SPCSL Gamma (mkhoare p (basic x e) (lexists y (land ps (equals (esub e x y) x))))
+| spc_lookup (p ps: assert) (x y: V) (e: expr):
+    ~In y (x :: aoccur p ++ evar e) ->
+    asub p x y = Some ps ->
+    SPCSL Gamma (mkhoare (land p (hasvaldash e)) (lookup x e) (lexists y (land ps (hasval (esub e x y) x))))
+| spc_mutation (p ps: assert) (x y: V) (e: expr):
+    ~In y (x :: aoccur p ++ evar e) ->
+    asub_heap_update p x y = Some ps ->
+    SPCSL Gamma (mkhoare (land p (hasvaldash x)) (mutation x e) (land (lexists y ps) (hasval x e)))
+| spc_new (p ps pss: assert) (x y: V) (e: expr):
+    ~In y (x :: aoccur p ++ evar e) ->
+    asub p x y = Some ps ->
+    asub_heap_clear (lexists y ps) x = Some pss ->
+    SPCSL Gamma (mkhoare p (new x e) (land pss (hasval x e)))
+| spc_dispose (p ps: assert) (x y: V):
+    ~In y (x :: aoccur p) ->
+    asub_heap_update p x y = Some ps ->
+    SPCSL Gamma (mkhoare (land p (hasvaldash x)) (dispose x) (land (lexists y ps) (lnot (hasvaldash x))))
+| spc_conseq (p pp q qq: assert) (x: program):
+    Gamma (limp pp p) -> SPCSL Gamma (mkhoare p x q) -> Gamma (limp q qq) ->
+    SPCSL Gamma (mkhoare pp x qq).
+
 End Language.
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

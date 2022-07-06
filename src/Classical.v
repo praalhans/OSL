@@ -1312,6 +1312,29 @@ induction p; intros.
       apply in_or_app. left. apply in_or_app. auto.
 Qed.
 
+Proposition soundness_conseq (p pp q qq: assert) (x: program):
+  validity (limp pp p) -> validity (limp q qq) -> strong_partial_correct (mkhoare p x q) ->
+  strong_partial_correct (mkhoare pp x qq).
+intros.
+intro. intros.
+unfold strong_partial_correct in H1.
+specialize H1 with h s.
+unfold validity in *.
+specialize H with h s.
+rewrite satisfy_limp in H.
+split.
+- destruct H1. apply H; assumption. assumption.
+- intros.
+  specialize H0 with h' s'.
+  rewrite satisfy_limp in H0.
+  destruct H1. apply H; assumption.
+  apply H0. apply H4. assumption.
+Qed.
+
+(* ============================================ *)
+(* Weakest precondition axiomatization (WP-CSL) *)
+(* ============================================ *)
+
 Corollary WPCSL_soundness_basic (p: assert) (x: V) (e: expr):
   forall ps, asub p x e = Some ps ->
     strong_partial_correct (mkhoare ps (basic x e) p).
@@ -1424,25 +1447,6 @@ split.
   assumption.
 Qed.
 
-Proposition WPCSL_soundness_conseq (p pp q qq: assert) (x: program):
-  validity (limp pp p) -> validity (limp q qq) -> strong_partial_correct (mkhoare p x q) ->
-  strong_partial_correct (mkhoare pp x qq).
-intros.
-intro. intros.
-unfold strong_partial_correct in H1.
-specialize H1 with h s.
-unfold validity in *.
-specialize H with h s.
-rewrite satisfy_limp in H.
-split.
-- destruct H1. apply H; assumption. assumption.
-- intros.
-  specialize H0 with h' s'.
-  rewrite satisfy_limp in H0.
-  destruct H1. apply H; assumption.
-  apply H0. apply H4. assumption.
-Qed.
-
 Theorem WPCSL_soundness (Gamma: assert -> Prop) (O: forall p, Gamma p -> validity p):
   forall pSq, WPCSL Gamma pSq -> strong_partial_correct pSq.
 intros. induction H.
@@ -1452,7 +1456,7 @@ intros. induction H.
 - apply WPCSL_soundness_new; assumption.
 - apply WPCSL_soundness_dispose; assumption.
 - apply O in H. apply O in H1.
-  eapply WPCSL_soundness_conseq.
+  eapply soundness_conseq.
   apply H. apply H1. assumption.
 Qed.
 
@@ -1607,6 +1611,54 @@ Corollary WPCSL_soundness_completeness:
 intros. split.
 apply WPCSL_soundness; auto.
 apply WPCSL_completeness; auto.
+Qed.
+
+(* =============================================== *)
+(* Strongest postcondition axiomatization (SP-CSL) *)
+(* =============================================== *)
+
+Corollary SPCSL_soundness_basic (p: assert) (x y: V) (e: expr):
+  ~ In y (x :: aoccur p ++ evar e) ->
+  forall ps, asub p x y = Some ps ->
+  strong_partial_correct (mkhoare p (basic x e) (lexists y (land ps (equals (esub e x y) x)))).
+Admitted.
+
+Corollary SPCSL_soundness_lookup (p: assert) (x y: V) (e: expr):
+  ~ In y (x :: aoccur p ++ evar e) ->
+  forall ps, asub p x y = Some ps ->
+  strong_partial_correct (mkhoare (land p (hasvaldash e)) (lookup x e) (lexists y (land ps (hasval (esub e x y) x)))).
+Admitted.
+
+Corollary SPCSL_soundness_mutation (p: assert) (x y: V) (e: expr):
+  ~ In y (x :: aoccur p ++ evar e) ->
+  forall ps, asub_heap_update p x y = Some ps ->
+  strong_partial_correct (mkhoare (land p (hasvaldash x)) (mutation x e) (land (lexists y ps) (hasval x e))).
+Admitted.
+
+Corollary SPCSL_soundness_new (p: assert) (x y: V) (e: expr):
+  ~ In y (x :: aoccur p ++ evar e) ->
+  forall ps, asub p x y = Some ps ->
+  forall pss, asub_heap_clear (lexists y ps) x = Some pss ->
+  strong_partial_correct (mkhoare p (new x e) (land pss (hasval x e))).
+Admitted.
+
+Corollary SPCSL_soundness_dispose (p: assert) (x y: V):
+  ~ In y (x :: aoccur p) ->
+  forall ps, asub_heap_update p x y = Some ps ->
+  strong_partial_correct (mkhoare (land p (hasvaldash x)) (dispose x) (land (lexists y ps) (lnot (hasvaldash x)))).
+Admitted.
+
+Theorem SPCSL_soundness (Gamma: assert -> Prop) (O: forall p, Gamma p -> validity p):
+  forall pSq, SPCSL Gamma pSq -> strong_partial_correct pSq.
+intros. induction H.
+- apply SPCSL_soundness_basic; assumption.
+- apply SPCSL_soundness_lookup; assumption.
+- apply SPCSL_soundness_mutation; assumption.
+- eapply SPCSL_soundness_new. apply H. apply H0. assumption.
+- apply SPCSL_soundness_dispose; assumption.
+- apply O in H. apply O in H1.
+  eapply soundness_conseq.
+  apply H. apply H1. assumption.
 Qed.
 
 End Classical.
