@@ -564,6 +564,26 @@ try (simpl in H0;
   eapply esub_notInVar. apply H. apply H1.
 Qed.
 
+Proposition abound_asub (p: assert) (x: V) (e: expr):
+  ~In x (abound p) -> forall ps, asub p x e = Some ps -> ~ In x (abound ps).
+generalize dependent x. induction p; intros; inversion H0; auto;
+try (rename H2 into H1;
+  apply option_app_elim in H1; destruct H1; destruct H1;
+  apply option_app_elim in H2; destruct H2; destruct H2;
+  inversion H3;
+  simpl; intro; apply in_app_or in H4; destruct H4;
+  [eapply IHp1; [intro; apply H; apply in_or_app; left; apply H6 | apply H1 | assumption ]|
+   eapply IHp2; [intro; apply H; apply in_or_app; right; apply H6 | apply H2 | assumption ]]);
+try (destruct (in_dec Nat.eq_dec v (evar e)); inversion H2; clear H2;
+  rename H3 into H1;
+  apply option_app_elim in H1; destruct H1; destruct H1;
+  destruct (Nat.eq_dec x v);
+  [exfalso; apply H; simpl; left; auto|];
+  inversion H2; simpl; intro; destruct H3; auto;
+  eapply IHp; [intro; apply H; simpl; right; apply H5|
+  apply H1|assumption]).
+Qed.
+
 Fixpoint areplace (p: assert) (x y: V): assert :=
   match p with
   | test g => test (gsub g x y)
@@ -932,7 +952,7 @@ Definition pre: hoare -> assert := fun '(mkhoare p _ _) => p.
 Definition S: hoare -> program := fun '(mkhoare _ x _) => x.
 Definition post: hoare -> assert := fun '(mkhoare _ _ q) => q.
 
-Definition restrict: hoare -> Prop := fun '(mkhoare _ x q) =>
+Definition restrict_post: hoare -> Prop := fun '(mkhoare _ x q) =>
   match x with
   | assign x => match x with
     | basic x e => (forall y, In y (evar e) -> ~In y (abound q))
@@ -942,6 +962,19 @@ Definition restrict: hoare -> Prop := fun '(mkhoare _ x q) =>
     | dispose x => ~In x (abound q)
     end
   end.
+
+Definition restrict_pre: hoare -> Prop := fun '(mkhoare p x _) =>
+  match x with
+  | assign x => match x with
+    | basic x e => ~In x (abound p)
+    | lookup x e => ~In x (abound p)
+    | mutation x e => ~In x (abound p)
+    | new x e => ~In x (evar e) /\ ~In x (abound p)
+    | dispose x => ~In x (abound p)
+    end
+  end.
+
+Definition restrict (pSq: hoare): Prop := restrict_post pSq /\ restrict_pre pSq.
 
 (* ============================================ *)
 (* Weakest precondition axiomatization (WP-CSL) *)

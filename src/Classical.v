@@ -130,6 +130,16 @@ intro. rewrite satisfy_lexists. intro.
 eapply H0. apply H.
 Qed.
 
+Proposition satisfy_lexists_elim (h h': heap) (s s': store) (x: V) (p r: assert):
+  satisfy h s (lexists x p) -> (forall n, satisfy h (store_update s x n) p -> satisfy h' s' r) ->
+  satisfy h' s' r.
+intros.
+apply satisfy_stable. intro.
+rewrite satisfy_lexists in H.
+apply H. intros.
+intro. apply H1. eapply H0. apply H2.
+Qed.
+
 Proposition satisfy_equals (h: heap) (s: store) (e0 e1: expr):
   satisfy h s (equals e0 e1) <-> e0 s = e1 s.
 simpl. destruct (Z.eq_dec (eval e0 s) (eval e1 s)).
@@ -1569,8 +1579,8 @@ apply H1. apply step_dispose; auto.
 Qed.
 
 Theorem WPCSL_completeness (Gamma: assert -> Prop) (O: forall p, validity p -> Gamma p):
-  forall pSq, restrict pSq -> strong_partial_correct pSq -> WPCSL Gamma pSq.
-intros. destruct pSq as (p, S, q); destruct S; destruct a; unfold restrict in H.
+  forall pSq, restrict_post pSq -> strong_partial_correct pSq -> WPCSL Gamma pSq.
+intros. destruct pSq as (p, S, q); destruct S; destruct a; unfold restrict_post in H.
 - rewrite asub_defined with (x := v) in H.
   destruct H.
   apply wpc_conseq with (p := x) (q := q).
@@ -1607,7 +1617,7 @@ intros. destruct pSq as (p, S, q); destruct S; destruct a; unfold restrict in H.
 Qed.
 
 Corollary WPCSL_soundness_completeness:
-  forall pSq, restrict pSq -> WPCSL validity pSq <-> strong_partial_correct pSq.
+  forall pSq, restrict_post pSq -> WPCSL validity pSq <-> strong_partial_correct pSq.
 intros. split.
 apply WPCSL_soundness; auto.
 apply WPCSL_completeness; auto.
@@ -1827,9 +1837,206 @@ intros. induction H.
   apply H. apply H1. assumption.
 Qed.
 
+Corollary SPCSL_strongest_basic (p q: assert) (x y: V) (e: expr):
+  strong_partial_correct (mkhoare p (basic x e) q) ->
+  ~ In y (x :: aoccur p ++ evar e ++ aoccur q) ->
+  forall ps, asub p x y = Some ps ->
+  validity (limp (lexists y (land ps (equals (esub e x y) x))) q).
+intros. intro. intros.
+rewrite satisfy_limp. intro.
+eapply satisfy_lexists_elim. apply H2. clear H2; intros.
+rewrite satisfy_land in H2; destruct H2.
+rewrite satisfy_equals in H3; simpl in H3.
+rewrite store_update_lookup_same in H3.
+assert (x <> y). intro. apply H0. left. auto.
+rewrite store_update_lookup_diff in H3; auto.
+pose proof (store_substitution_lemma h (store_update s y n) p x y ps H1).
+apply H5 in H2; clear H5. simpl in H2.
+rewrite store_update_lookup_same in H2.
+unfold strong_partial_correct in H.
+apply H in H2; clear H. destruct H2.
+pose proof (step_basic x e h (store_update (store_update s y n) x n)).
+apply H2 in H5. rewrite H3 in H5.
+rewrite store_update_collapse in H5.
+assert (s x = (store_update s y n) x).
+rewrite store_update_lookup_diff; auto.
+rewrite H6 in H5.
+rewrite store_update_id in H5.
+rewrite acond. apply H5.
+intro. intro. destruct (Nat.eq_dec x0 y).
+exfalso. rewrite e0 in H7. apply H0. right.
+apply in_or_app. right. apply in_or_app. right. apply in_or_app; auto.
+rewrite store_update_lookup_diff; auto.
+Qed.
+
+Corollary SPCSL_strongest_lookup (p q: assert) (x y: V) (e: expr):
+  strong_partial_correct (mkhoare p (lookup x e) q) ->
+  ~ In y (x :: aoccur p ++ evar e ++ aoccur q) ->
+  forall ps, asub p x y = Some ps ->
+  validity (limp (lexists y (land ps (hasval (esub e x y) x))) q).
+intros. intro. intros.
+rewrite satisfy_limp; intro.
+eapply satisfy_lexists_elim. apply H2. clear H2; intros.
+rewrite satisfy_land in H2; destruct H2.
+rewrite satisfy_hasval in H3.
+pose proof (store_substitution_lemma h (store_update s y n) p x y ps H1).
+apply H4 in H2; clear H4. simpl in H2.
+rewrite store_update_lookup_same in H2.
+simpl in H3. rewrite store_update_lookup_same in H3.
+assert (x <> y). intro. apply H0. left; auto.
+rewrite store_update_lookup_diff in H3; auto.
+unfold strong_partial_correct in H.
+apply H in H2; clear H. destruct H2.
+pose proof (step_lookup x e h _ _ H3).
+apply H2 in H5; clear H2.
+rewrite store_update_collapse in H5.
+rewrite store_update_swap in H5; auto.
+rewrite store_update_id in H5.
+rewrite acond. apply H5.
+intro. intro. destruct (Nat.eq_dec x0 y).
+exfalso. apply H0. rewrite <- e0. right.
+apply in_or_app. right. apply in_or_app. right. apply in_or_app; auto.
+rewrite store_update_lookup_diff; auto.
+Qed.
+
+Corollary SPCSL_strongest_mutation (p q: assert) (x y: V) (e: expr):
+  strong_partial_correct (mkhoare p (mutation x e) q) ->
+  ~In y (x :: aoccur p ++ evar e ++ aoccur q) ->
+  forall ps, asub_heap_update p x y = Some ps ->
+  validity (limp (land (lexists y ps) (hasval x e)) q).
+Admitted.
+
+Corollary SPCSL_strongest_new (p q: assert) (x y: V) (e: expr):
+  ~ In x (evar e) ->
+  strong_partial_correct (mkhoare p (new x e) q) ->
+  ~ In y (x :: aoccur p ++ evar e ++ aoccur q) ->
+  forall ps, asub p x y = Some ps ->
+  forall pss, asub_heap_clear (lexists y ps) x = Some pss ->
+  validity (limp (land pss (hasval x e)) q).
+Admitted.
+
+Corollary SPCSL_strongest_dispose (p q: assert) (x y: V):
+  strong_partial_correct (mkhoare p (dispose x) q) ->
+  ~ In y (x :: aoccur p ++ aoccur q) ->
+  forall ps, asub_heap_update p x y = Some ps ->
+  validity (limp (land (lexists y ps) (lnot (hasvaldash x))) q).
+Admitted.
+
+Theorem SPCSL_completeness (Gamma: assert -> Prop) (O: forall p, validity p -> Gamma p):
+  forall pSq, restrict_pre pSq -> strong_partial_correct pSq -> SPCSL Gamma pSq.
+intros. destruct pSq as (p, S, q); destruct S; destruct a; unfold restrict_pre in H.
+- remember (fresh (v :: aoccur p ++ evar e ++ aoccur q)) as y.
+  pose proof (asub_defined p v y).
+  assert (forall x, In x (evar y) -> ~In x (abound p)). intros.
+    simpl in H2. destruct H2; auto. rewrite <- H2. rewrite Heqy.
+    apply fresh_notInGeneral. intros. right. apply in_or_app. left. apply in_or_app; auto.
+  apply H1 in H2; clear H1; destruct H2.
+  apply spc_conseq with (p := p) (q := (lexists y (land x (equals (esub e v y) v)))).
+  apply O. intro. intro. rewrite satisfy_limp; tauto.
+  apply spc_basic. rewrite Heqy. apply fresh_notInGeneral. intros.
+    inversion H2. left; auto. apply in_app_or in H3; destruct H3.
+    right. apply in_or_app; auto. right. apply in_or_app.
+    right. apply in_or_app; auto. assumption.
+  apply O. eapply SPCSL_strongest_basic. apply H0.
+  rewrite Heqy. apply fresh_notIn. assumption.
+- remember (fresh (v :: aoccur p ++ evar e ++ aoccur q)) as y.
+  pose proof (asub_defined p v y).
+  assert (forall x, In x (evar y) -> ~In x (abound p)). intros.
+    simpl in H2. destruct H2; auto. rewrite <- H2. rewrite Heqy.
+    apply fresh_notInGeneral. intros. right. apply in_or_app. left. apply in_or_app; auto.
+  apply H1 in H2; clear H1; destruct H2.
+  apply spc_conseq with (p := (land p (hasvaldash e))) (q := (lexists y (land x (hasval (esub e v y) v)))).
+  apply O. intro. intros. rewrite satisfy_limp. intro. unfold strong_partial_correct in H0.
+    rewrite satisfy_land. split; auto. rewrite satisfy_hasvaldash.
+    apply H0 in H2. destruct H2. destruct (dom_dec h (e s)); auto. exfalso.
+    apply H2. apply step_lookup_fail. rewrite dom_spec in H4. destruct (h (e s)); auto.
+    exfalso. apply H4. intro. inversion H5.
+  apply spc_lookup. rewrite Heqy. apply fresh_notInGeneral. intros.
+    inversion H2. left; auto. right. apply in_app_or in H3; destruct H3.
+    apply in_or_app; auto. apply in_or_app; right. apply in_or_app; auto.
+    assumption.
+  apply O. eapply SPCSL_strongest_lookup. apply H0.
+  rewrite Heqy. apply fresh_notIn. assumption.
+- remember (fresh (v :: aoccur p ++ evar e ++ aoccur q)) as y.
+  pose proof (asub_heap_update_defined p v y).
+  assert (forall y0 : V, In y0 (v :: evar y) -> ~ In y0 (abound p)). intros.
+    simpl in H2. destruct H2. rewrite <- H2. auto. destruct H2. rewrite <- H2.
+    rewrite Heqy. apply fresh_notInGeneral. intros. right. apply in_or_app. left.
+    apply in_or_app; auto. inversion H2.
+  apply H1 in H2; clear H1; destruct H2.
+  apply spc_conseq with (p := (land p (hasvaldash v))) (q := land (lexists y x) (hasval v e)).
+  apply O. intro. intro. rewrite satisfy_limp; intro.
+    rewrite satisfy_land. split; auto. rewrite satisfy_hasvaldash.
+    unfold strong_partial_correct in H0. apply H0 in H2. destruct H2.
+    apply dom_spec. intro. apply H2. apply step_mutation_fail. intro.
+    apply dom_spec in H5. simpl in H4. apply H5. auto.
+  apply spc_mutation. rewrite Heqy. apply fresh_notInGeneral. intros.
+    inversion H2. left; auto. right. apply in_app_or in H3; destruct H3.
+    apply in_or_app; auto. apply in_or_app; right. apply in_or_app; auto. assumption.
+  apply O. eapply SPCSL_strongest_mutation. apply H0. rewrite Heqy.
+    apply fresh_notIn. assumption.
+- remember (fresh (v :: aoccur p ++ evar e ++ aoccur q)) as y.
+  pose proof (asub_defined p v y).
+  assert (forall x, In x (evar y) -> ~In x (abound p)). intros.
+    simpl in H2. destruct H2; auto. rewrite <- H2. rewrite Heqy.
+    apply fresh_notInGeneral. intros. right. apply in_or_app. left. apply in_or_app; auto.
+  apply H1 in H2; clear H1; destruct H2.
+  pose proof (asub_heap_clear_defined (lexists y x) v).
+  destruct H.
+  assert (~In v (abound (lexists y x))). simpl. intro.
+    destruct H4. rewrite <- H4 in Heqy.
+    eapply fresh_notIn with (xs := y :: aoccur p ++ evar e ++ aoccur q).
+    left. assumption. eapply (abound_asub _ _ _ H3 _ H1); assumption.
+  apply H2 in H4; clear H2; destruct H4.
+  apply spc_conseq with (p := p) (q := land x0 (hasval v e)).
+  apply O. intro. intros. rewrite satisfy_limp; tauto.
+  eapply spc_new; [ apply H | | apply H1 | ].
+  rewrite Heqy. apply fresh_notInGeneral. intros. inversion H4.
+    left; auto. right; apply in_or_app. apply in_app_or in H5; destruct H5; auto.
+    right. apply in_or_app; auto. assumption.
+  apply O. eapply SPCSL_strongest_new. apply H. apply H0.
+    apply fresh_notIn. rewrite <- Heqy. apply H1.
+    rewrite <- Heqy. assumption.
+- remember (fresh (v :: aoccur p ++ aoccur q)) as y.
+  pose proof (asub_heap_update_defined p v y).
+  assert (forall y0 : V, In y0 (v :: evar y) -> ~ In y0 (abound p)). intros.
+    simpl in H2. destruct H2. rewrite <- H2. auto. destruct H2. rewrite <- H2.
+    rewrite Heqy. apply fresh_notInGeneral. intros. right. apply in_or_app. left.
+    apply in_or_app; auto. inversion H2.
+  apply H1 in H2; clear H1; destruct H2.
+  apply spc_conseq with (p := (land p (hasvaldash v))) (q := land (lexists y x) (lnot (hasvaldash v))).
+  apply O. intro. intro. rewrite satisfy_limp; intro.
+    rewrite satisfy_land. split; auto. rewrite satisfy_hasvaldash.
+    unfold strong_partial_correct in H0. apply H0 in H2. destruct H2.
+    apply dom_spec. intro. apply H2. apply step_dispose_fail. intro.
+    apply dom_spec in H5. simpl in H4. apply H5. auto.
+  apply spc_dispose. rewrite Heqy. apply fresh_notInGeneral. intros.
+    inversion H2. left; auto. right. apply in_app_or in H3; destruct H3.
+    apply in_or_app; left. apply in_or_app; auto. apply in_or_app; left.
+    apply in_or_app; auto. assumption.
+  apply O. eapply SPCSL_strongest_dispose. apply H0. rewrite Heqy.
+    apply fresh_notIn. assumption.
+Qed.
+
+Corollary SPCSL_soundness_completeness:
+  forall pSq, restrict_pre pSq -> SPCSL validity pSq <-> strong_partial_correct pSq.
+intros. split.
+apply SPCSL_soundness. tauto.
+apply SPCSL_completeness. tauto. tauto.
+Qed.
+
+Corollary result:
+  forall pSq, restrict pSq -> SPCSL validity pSq <-> WPCSL validity pSq.
+intros. destruct H. split.
+intro. apply SPCSL_soundness_completeness in H1; auto.
+apply WPCSL_soundness_completeness; auto.
+intro. apply WPCSL_soundness_completeness in H1; auto.
+apply SPCSL_soundness_completeness; auto.
+Qed.
+
 End Classical.
 
 (* To show the used axioms in our development, we make everything concrete: *)
 Module ClassicalIHeap := Classical IHeap.
 Import ClassicalIHeap.
-Print Assumptions WPCSL_soundness_completeness.
+Print Assumptions result.
