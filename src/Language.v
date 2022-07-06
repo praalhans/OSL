@@ -906,11 +906,22 @@ Definition pre: hoare -> assert := fun '(mkhoare p _ _) => p.
 Definition S: hoare -> program := fun '(mkhoare _ x _) => x.
 Definition post: hoare -> assert := fun '(mkhoare _ _ q) => q.
 
+Definition restrict: hoare -> Prop := fun '(mkhoare _ x q) =>
+  match x with
+  | assign x => match x with
+    | basic x e => (forall y, In y (evar e) -> ~In y (abound q))
+    | lookup x e => True
+    | mutation x e => (forall y, In y (x :: evar e) -> ~In y (abound q))
+    | new x e => ~In x (evar e) /\ (forall y, In y (x :: evar e) -> ~In y (abound q))
+    | dispose x => ~In x (abound q)
+    end
+  end.
+
 (* ============================================ *)
 (* Weakest precondition axiomatization (WP-CSL) *)
 (* ============================================ *)
 
-Inductive WPCSL (Gamma: assert -> Prop): hoare -> Set :=
+Inductive WPCSL (Gamma: assert -> Prop): hoare -> Prop :=
 | wpc_basic (p ps: assert) (x: V) (e: expr):
     asub p x e = Some ps ->
     WPCSL Gamma (mkhoare ps (basic x e) p)

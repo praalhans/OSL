@@ -1440,12 +1440,91 @@ Qed.
 Theorem WPCSL_soundness (Gamma: assert -> Prop) (O: forall p, Gamma p -> validity p):
   forall pSq, WPCSL Gamma pSq -> strong_partial_correct pSq.
 intros. induction H.
-apply WPCSL_soundness_basic; assumption.
-apply WPCSL_soundness_lookup; assumption.
-apply WPCSL_soundness_mutation; assumption.
-apply WPCSL_soundness_new; assumption.
-apply WPCSL_soundness_dispose; assumption.
-apply O in g. apply O in g0. eapply WPCSL_soundness_conseq. apply g. apply g0. assumption.
+- apply WPCSL_soundness_basic; assumption.
+- apply WPCSL_soundness_lookup; assumption.
+- apply WPCSL_soundness_mutation; assumption.
+- apply WPCSL_soundness_new; assumption.
+- apply WPCSL_soundness_dispose; assumption.
+- apply O in H. apply O in H1.
+  eapply WPCSL_soundness_conseq.
+  apply H. apply H1. assumption.
+Qed.
+
+Corollary WPCSL_weakest_basic (q p: assert) (x: V) (e: expr):
+  strong_partial_correct (mkhoare p (basic x e) q) ->
+  forall qs, asub q x e = Some qs ->
+  validity (limp p qs).
+Admitted.
+
+Corollary WPCSL_weakest_lookup (q p: assert) (x: V) (e: expr):
+  strong_partial_correct (mkhoare p (lookup x e) q) ->
+  forall y, ~In y (x :: aoccur q ++ evar e) ->
+  forall qs, asub q x y = Some qs ->
+  validity (limp p (lexists y (land (hasval e y) qs))).
+Admitted.
+
+Corollary WPCSL_weakest_mutation (q p: assert) (x: V) (e: expr):
+  strong_partial_correct (mkhoare p (mutation x e) q) ->
+  forall qs, asub_heap_update q x e = Some qs ->
+  validity (limp p (land (hasvaldash x) qs)).
+Admitted.
+
+Corollary WPCSL_weakest_allocation (q p: assert) (x: V) (e: expr):
+  strong_partial_correct (mkhoare p (new x e) q) ->
+  ~ In x (evar e) ->
+  forall qs, asub_heap_update q x e = Some qs ->
+  validity (limp p (lforall x (limp (lnot (hasvaldash x)) qs))).
+Admitted.
+
+Corollary WPCSL_weakest_dispose (q p: assert) (x: V):
+  strong_partial_correct (mkhoare p (dispose x) q) ->
+  forall qs, asub_heap_clear q x = Some qs ->
+  validity (limp p (land (hasvaldash x) qs)).
+Admitted.
+
+Theorem WPCSL_completeness (Gamma: assert -> Prop) (O: forall p, validity p -> Gamma p):
+  forall pSq, restrict pSq -> strong_partial_correct pSq -> WPCSL Gamma pSq.
+intros. destruct pSq as (p, S, q); destruct S; destruct a; unfold restrict in H.
+- rewrite asub_defined with (x := v) in H.
+  destruct H.
+  apply wpc_conseq with (p := x) (q := q).
+  apply O. eapply WPCSL_weakest_basic. apply H0. auto.
+  apply wpc_basic; auto.
+  apply O. intro. intro. rewrite satisfy_limp. tauto.
+- remember (fresh (v :: aoccur q ++ evar e)) as y.
+  pose proof (asub_defined q v y).
+  assert (forall x : V, In x (evar y) -> ~ In x (abound q)).
+  intros. simpl in H2. destruct H2. rewrite <- H2. rewrite Heqy.
+  apply fresh_notInGeneral. intros. right. apply in_or_app. left. apply in_or_app. auto. inversion H2.
+  apply H1 in H2; clear H1; destruct H2.
+  apply wpc_conseq with (p := (lexists y (land (hasval e y) x))) (q := q).
+  apply O. eapply WPCSL_weakest_lookup. apply H0.
+  rewrite Heqy. apply fresh_notIn. auto.
+  apply wpc_lookup; auto.
+  rewrite Heqy. apply fresh_notIn.
+  apply O. intro. intro. rewrite satisfy_limp. tauto.
+- rewrite asub_heap_update_defined in H. destruct H.
+  apply wpc_conseq with (p := land (hasvaldash v) x) (q := q).
+  apply O. eapply WPCSL_weakest_mutation. apply H0. auto.
+  apply wpc_mutation. auto.
+  apply O. intro. intro. rewrite satisfy_limp. tauto.
+- destruct H. rewrite asub_heap_update_defined in H1. destruct H1.
+  apply wpc_conseq with (p := lforall v (limp (lnot (hasvaldash v)) x)) (q := q).
+  apply O. eapply WPCSL_weakest_allocation. apply H0. auto. auto.
+  apply wpc_new. auto. auto.
+  apply O. intro. intro. rewrite satisfy_limp. tauto.
+- rewrite asub_heap_clear_defined in H. destruct H.
+  apply wpc_conseq with (p := land (hasvaldash v) x) (q := q).
+  apply O. eapply WPCSL_weakest_dispose. apply H0. auto.
+  apply wpc_dispose. auto.
+  apply O. intro. intro. rewrite satisfy_limp. tauto.
+Qed.
+
+Corollary WPCSL_soundness_completeness:
+  forall pSq, restrict pSq -> WPCSL validity pSq <-> strong_partial_correct pSq.
+intros. split.
+apply WPCSL_soundness; auto.
+apply WPCSL_completeness; auto.
 Qed.
 
 End Classical.
@@ -1453,4 +1532,4 @@ End Classical.
 (* To show the used axioms in our development, we make everything concrete: *)
 Module ClassicalIHeap := Classical IHeap.
 Import ClassicalIHeap.
-Print Assumptions WPCSL_soundness.
+Print Assumptions WPCSL_soundness_completeness.
