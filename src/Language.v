@@ -259,14 +259,12 @@ exfalso. apply H. rewrite e0. assumption.
 reflexivity.
 Qed.
 
-Proposition esub_notInVar (e: expr) (x y: V):
-  x <> y -> ~ In x (evar (esub e x y)).
+Proposition esub_notInVar (e: expr) (x: V) (e': expr):
+  ~In x (evar e') -> ~ In x (evar (esub e x e')).
 intros; simpl; intro.
 apply in_app_or in H0; destruct H0.
 eapply remove_In; apply H0.
-inversion H0.
-apply H; symmetry; assumption.
-inversion H1.
+apply H; auto.
 Qed.
 
 Proposition expr_eq (e1 e2: expr):
@@ -329,13 +327,12 @@ Definition gsub (g: guard) (x: V) (e: expr): guard :=
   mkguard (fun s => gval g (store_update s x (eval e s)))
     (remove Nat.eq_dec x (gvar g) ++ evar e) (gsub_cond g x e).
 
-Proposition gsub_notInVar (g: guard) (x y:V):
-  x <> y -> ~In x (gvar (gsub g x y)).
+Proposition gsub_notInVar (g: guard) (x:V) (e: expr):
+  ~In x (evar e) -> ~In x (gvar (gsub g x e)).
 intros; simpl; intro.
 apply in_app_or in H0; destruct H0.
 eapply remove_In; apply H0.
-inversion H0. apply H; symmetry; assumption.
-inversion H1.
+apply H. assumption.
 Qed.
 
 Proposition guard_eq (g1 g2: guard):
@@ -541,6 +538,32 @@ generalize dependent x; induction p; intro x; simpl;
   exists (hasval (esub e0 x e) (esub e1 x e)); reflexivity.
 Qed.
 
+Proposition asub_notInVar (p: assert) (x: V) (e: expr):
+  ~In x (evar e) -> forall ps, asub p x e = Some ps -> ~In x (avar ps).
+intro. induction p; intros;
+try (simpl in H0;
+  apply option_app_elim in H0; destruct H0; destruct H0;
+  apply option_app_elim in H1; destruct H1; destruct H1;
+  inversion H2; simpl;
+  intro; apply in_app_or in H3; destruct H3;
+  [eapply IHp1; [apply H0 | auto] | eapply IHp2; [apply H1 | auto]]; fail);
+try (simpl in H0;
+  destruct (in_dec Nat.eq_dec v (evar e)); inversion H0;
+  apply option_app_elim in H0; destruct H0; destruct H0;
+  inversion H1;
+  simpl; intro;
+  destruct (Nat.eq_dec x v);
+  [eapply remove_In; rewrite e0 in H3; apply H3|
+   apply In_remove_elim in H3; auto;
+   eapply IHp; [apply H0 | auto]]).
+- simpl in H0. inversion H0. unfold avar.
+  apply gsub_notInVar. assumption.
+- simpl in H0. inversion H0. unfold avar.
+  intro. apply in_app_or in H1; destruct H1.
+  eapply esub_notInVar. apply H. apply H1.
+  eapply esub_notInVar. apply H. apply H1.
+Qed.
+
 Fixpoint areplace (p: assert) (x y: V): assert :=
   match p with
   | test g => test (gsub g x y)
@@ -575,14 +598,17 @@ try (((rewrite aoccur_split_land in H0;
   apply not_In_split in H0; tauto; fail).
 - intro; apply in_app_or in H1; destruct H1.
   unfold abound in H1. inversion H1.
-  apply (gsub_notInVar _ _ _ H H1).
+  pose proof (gsub_notInVar g x y).
+  apply H2; auto. simpl; intro. destruct H3; auto.
 - unfold aoccur in *; unfold abound in *; unfold avar in *.
   intro.
   apply in_app_or in H1; destruct H1.
   inversion H1.
   apply in_app_or in H1; destruct H1.
-  apply (esub_notInVar _ _ _ H H1).
-  apply (esub_notInVar _ _ _ H H1).
+  pose proof (esub_notInVar e x y). apply H2; auto.
+  simpl. intro. destruct H3; auto.
+  pose proof (esub_notInVar e0 x y). apply H2; auto.
+  simpl. intro. destruct H3; auto.
 - destruct (Nat.eq_dec x v).
   + simpl; intro; destruct H1.
     apply H; auto.
