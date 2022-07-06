@@ -124,6 +124,12 @@ Proposition satisfy_lexists (h: heap) (s: store) (x: V) (p: assert):
 simpl. tauto.
 Qed.
 
+Proposition satisfy_lexists_intro (h: heap) (s: store) (x: V) (p: assert) (n: Z):
+  satisfy h (store_update s x n) p -> satisfy h s (lexists x p).
+intro. rewrite satisfy_lexists. intro.
+eapply H0. apply H.
+Qed.
+
 Proposition satisfy_equals (h: heap) (s: store) (e0 e1: expr):
   satisfy h s (equals e0 e1) <-> e0 s = e1 s.
 simpl. destruct (Z.eq_dec (eval e0 s) (eval e1 s)).
@@ -1454,33 +1460,109 @@ Corollary WPCSL_weakest_basic (q p: assert) (x: V) (e: expr):
   strong_partial_correct (mkhoare p (basic x e) q) ->
   forall qs, asub q x e = Some qs ->
   validity (limp p qs).
-Admitted.
+intros. intro. intros.
+rewrite satisfy_limp. intro.
+unfold strong_partial_correct in H.
+specialize H with h s.
+apply H in H1; clear H. destruct H1.
+specialize H1 with h (store_update s x (e s)).
+pose proof (H1 (step_basic x e h s)); clear H1.
+rewrite store_substitution_lemma. apply H2. assumption.
+Qed.
 
 Corollary WPCSL_weakest_lookup (q p: assert) (x: V) (e: expr):
   strong_partial_correct (mkhoare p (lookup x e) q) ->
   forall y, ~In y (x :: aoccur q ++ evar e) ->
   forall qs, asub q x y = Some qs ->
   validity (limp p (lexists y (land (hasval e y) qs))).
-Admitted.
+intros. intro. intros.
+rewrite satisfy_limp; intro.
+unfold strong_partial_correct in H; specialize H with h s.
+apply H in H2; clear H; destruct H2.
+remember (h (e s)). destruct o.
+apply satisfy_lexists_intro with (n := z).
+rewrite satisfy_land. split.
+rewrite satisfy_hasval.
+assert (e s = e (store_update s y z)). {
+  apply econd. intro. intro. destruct (Nat.eq_dec x0 y).
+  rewrite e0 in H3. exfalso. apply H0. right. apply in_or_app. auto.
+  rewrite store_update_lookup_diff; auto. }
+rewrite <- H3. simpl. rewrite store_update_lookup_same. auto.
+specialize H2 with h (store_update s x z).
+symmetry in Heqo.
+pose proof (H2 (step_lookup x e h s z Heqo)); clear H2.
+pose proof (store_substitution_lemma h (store_update s y z) q x y qs H1).
+rewrite H2. simpl. rewrite store_update_lookup_same.
+rewrite store_update_swap.
+rewrite acond. apply H3.
+intro. intro. destruct (Nat.eq_dec x0 y).
+rewrite e0 in H4. exfalso. apply H0. right. apply in_or_app. left. apply in_or_app; auto.
+rewrite store_update_lookup_diff; auto.
+intro. rewrite H4 in H0. apply H0. left; auto.
+exfalso. apply H. apply step_lookup_fail. auto.
+Qed.
 
 Corollary WPCSL_weakest_mutation (q p: assert) (x: V) (e: expr):
   strong_partial_correct (mkhoare p (mutation x e) q) ->
   forall qs, asub_heap_update q x e = Some qs ->
   validity (limp p (land (hasvaldash x) qs)).
-Admitted.
+intros. intro. intros.
+rewrite satisfy_limp; intro.
+unfold strong_partial_correct in H.
+specialize H with h s.
+apply H in H1; clear H. destruct H1.
+assert (dom h (s x)).
+destruct (dom_dec h (s x)); auto.
+exfalso. apply H. apply step_mutation_fail; auto.
+rewrite satisfy_land; split.
+rewrite satisfy_hasvaldash; auto.
+rewrite heap_update_substitution_lemma; [|apply H0].
+apply H1. apply step_mutation; auto.
+Qed.
 
 Corollary WPCSL_weakest_allocation (q p: assert) (x: V) (e: expr):
   strong_partial_correct (mkhoare p (new x e) q) ->
   ~ In x (evar e) ->
   forall qs, asub_heap_update q x e = Some qs ->
   validity (limp p (lforall x (limp (lnot (hasvaldash x)) qs))).
-Admitted.
+intros. intro. intros.
+rewrite satisfy_limp; intro.
+rewrite satisfy_lforall; intro.
+rewrite satisfy_limp; intro.
+rewrite satisfy_lnot_hasvaldash in H3.
+rewrite store_update_lookup_same in H3.
+unfold strong_partial_correct in H.
+specialize H with h s.
+apply H in H2; clear H; destruct H2.
+specialize H2 with (heap_update h v (e s)) (store_update s x v).
+pose proof (H2 (step_new _ _ _ _ _ H3)); clear H2.
+rewrite heap_update_substitution_lemma; [|apply H1].
+rewrite store_update_lookup_same.
+assert (e s = e (store_update s x v)).
+apply econd. intro. intro. destruct (Nat.eq_dec x0 x).
+exfalso. apply H0. rewrite e0 in H2. auto.
+rewrite store_update_lookup_diff; auto.
+rewrite <- H2. assumption.
+Qed.
 
 Corollary WPCSL_weakest_dispose (q p: assert) (x: V):
   strong_partial_correct (mkhoare p (dispose x) q) ->
   forall qs, asub_heap_clear q x = Some qs ->
   validity (limp p (land (hasvaldash x) qs)).
-Admitted.
+intros. intro. intros.
+rewrite satisfy_limp; intro.
+rewrite satisfy_land.
+unfold strong_partial_correct in H.
+specialize H with h s.
+apply H in H1; clear H; destruct H1.
+assert (dom h (s x)).
+destruct (dom_dec h (s x)); auto.
+exfalso. apply H. apply step_dispose_fail; auto.
+split.
+rewrite satisfy_hasvaldash; auto.
+rewrite heap_clear_substitution_lemma; [|apply H0].
+apply H1. apply step_dispose; auto.
+Qed.
 
 Theorem WPCSL_completeness (Gamma: assert -> Prop) (O: forall p, validity p -> Gamma p):
   forall pSq, restrict pSq -> strong_partial_correct pSq -> WPCSL Gamma pSq.

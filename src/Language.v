@@ -868,7 +868,7 @@ Inductive bigstep: program -> heap * store -> option (heap * store) -> Prop :=
 | step_lookup (x: V) (e: expr) (h: heap) (s: store) (v: Z):
     h (eval e s) = Some v ->
     bigstep (lookup x e) (h, s) (Some (h, store_update s x v))
-| step_lookup_fail (x: V) (e: expr) (h: heap) (s: store) (v: Z):
+| step_lookup_fail (x: V) (e: expr) (h: heap) (s: store):
     h (eval e s) = None ->
     bigstep (lookup x e) (h, s) None
 | step_mutation (x: V) (e: expr) (h: heap) (s: store):
