@@ -806,7 +806,10 @@ Definition Partition (h h1 h2: heap): Prop :=
   let zs := proj1_sig h2 in Some xs = merge ys zs.
 
 Proposition Partition_spec1: forall h h1 h2, Partition h h1 h2 -> forall k, dom h1 k -> hfun h k = hfun h1 k.
-unfold Partition. unfold dom. unfold hfun. intros.
+unfold Partition. unfold hfun. intros.
+destruct h as (zs & G0). destruct h1 as (xs & G1). destruct h2 as (ys & G2).
+rewrite dom_spec in H0; unfold hfun in H0.
+simpl in *.
 Admitted.
 
 Axiom Partition_spec2: forall h h1 h2, Partition h h1 h2 -> forall k, dom h2 k -> hfun h k = hfun h2 k.
