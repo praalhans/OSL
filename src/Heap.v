@@ -47,14 +47,6 @@ Axiom Partition_intro: forall h1 h2, (forall k, ~(dom h1 k /\ dom h2 k)) -> exis
 
 End HeapSig.
 
-Module Type HasStablePartition (Import HS: HeapSig).
-
-Axiom Partition_stable: forall h h1 h2, ~~Partition h h1 h2 -> Partition h h1 h2.
-
-End HasStablePartition.
-
-Module Type DecHeapSig := HeapSig <+ HasStablePartition.
-
 Module HeapFacts (Import HS: HeapSig).
 
 Coercion hfun: heap >-> Funclass.
@@ -346,7 +338,7 @@ End IHeap.
 (* Finitely-based heaps *)
 (* ==================== *)
 
-Module FHeap <: DecHeapSig.
+Module FHeap <: HeapSig.
 
 Definition assoclist := list (Z * Z).
 
@@ -736,14 +728,90 @@ generalize dependent ys. induction xs; intros.
       rewrite H7 in H1. inversion H1. }
 Qed.
 
-(* TODO *)
-Parameter Partition: heap -> heap -> heap -> Prop.
-Axiom Partition_spec1: forall h h1 h2, Partition h h1 h2 -> forall k, dom h1 k -> hfun h k = hfun h1 k.
+(* See Coq.Sorting.Mergesort *)
+Fixpoint merge (xs: assoclist) (ys: assoclist): option assoclist :=
+  let fix merge_aux (ys: assoclist): option assoclist :=
+  match xs, ys with
+  | nil, _ => Some ys
+  | _, nil => Some xs
+  | (xk,xv)::xs', (yk,yv)::ys' => match xk ?= yk with
+    | Lt => match merge xs' ys with
+      | Some zs => Some ((xk,xv) :: zs)
+      | None => None
+      end
+    | Eq => None
+    | Gt => match merge_aux ys' with
+      | Some zs => Some ((yk,yv) :: zs)
+      | None => None
+      end
+    end
+  end
+  in merge_aux ys.
+
+Proposition merge_minkey (xs ys: assoclist) (k: Z):
+  minkey k xs -> minkey k ys -> forall zs, merge xs ys = Some zs -> minkey k zs.
+intros. generalize dependent ys. generalize dependent zs. induction xs; intros.
+destruct ys; inversion H1; auto.
+simpl in H1. generalize dependent zs. induction ys; intros.
+destruct a; inversion H1; assumption.
+destruct a as (xk,xv); destruct a0 as (yk,yv).
+simpl in H; destruct H.
+remember (xk ?= yk); destruct c.
+- inversion H1.
+- symmetry in Heqc; rewrite Z.compare_lt_iff in Heqc.
+  remember (merge xs ((yk, yv) :: ys)); destruct o; inversion H1.
+  symmetry in Heqo.
+  simpl; split. assumption. eapply IHxs. assumption.
+  apply H0. apply Heqo.
+- symmetry in Heqc; rewrite Z.compare_gt_iff in Heqc.
+  simpl in H0; destruct H0.
+  (* Advanced ltac to get hold of fix term. *)
+  match type of H1 with (match ?t with | _ => _ end = _) => remember t end.
+  destruct o. inversion H1. simpl. split. auto. apply IHys. auto. reflexivity. inversion H1.
+Qed.
+
+Proposition merge_heap_prop (xs ys: assoclist):
+  heap_prop xs -> heap_prop ys -> forall zs, merge xs ys = Some zs -> heap_prop zs.
+intros. generalize dependent ys. generalize dependent zs. induction xs; intros.
+simpl in H1; destruct ys; inversion H1; assumption.
+generalize dependent zs. induction ys; intros.
+simpl in H1. destruct a; inversion H1; assumption.
+destruct a as (xk,xv); destruct a0 as (yk,yv).
+remember (xk ?= yk); destruct c.
+- simpl in H1. rewrite <- Heqc in H1. inversion H1.
+- simpl in H1. rewrite <- Heqc in H1. symmetry in Heqc; rewrite Z.compare_lt_iff in Heqc.
+  remember (merge xs ((yk, yv) :: ys)); destruct o; inversion H1.
+  apply insert. inversion H.
+  symmetry in Heqo. eapply merge_minkey; [ | | apply Heqo]. auto.
+  simpl. split; auto. inversion H0.
+  eapply minkey_trans. apply Heqc. assumption.
+  eapply IHxs. inversion H; auto. apply H0. auto.
+- assert (forall k, minkey k ((xk, xv) :: xs) -> minkey k ys -> forall zs, merge ((xk, xv) :: xs) ys = Some zs -> minkey k zs) by
+    apply merge_minkey.
+  simpl in H1. rewrite <- Heqc in H1.
+  simpl in H2.
+  symmetry in Heqc; rewrite Z.compare_gt_iff in Heqc.
+  (* Advanced ltac to get hold of fix term. *)
+  match type of H1 with (match ?t with | _ => _ end = _) => remember t end.
+  destruct o; inversion H1.
+  apply insert. apply H2. split. auto. inversion H.
+  eapply minkey_trans. apply Heqc. apply H6.
+  inversion H0; auto. auto.
+  apply IHys. inversion H0; auto. auto.
+Qed.
+
+Definition Partition (h h1 h2: heap): Prop :=
+  let xs := proj1_sig h in
+  let ys := proj1_sig h1 in
+  let zs := proj1_sig h2 in Some xs = merge ys zs.
+
+Proposition Partition_spec1: forall h h1 h2, Partition h h1 h2 -> forall k, dom h1 k -> hfun h k = hfun h1 k.
+unfold Partition. unfold dom. unfold hfun. intros.
+Admitted.
+
 Axiom Partition_spec2: forall h h1 h2, Partition h h1 h2 -> forall k, dom h2 k -> hfun h k = hfun h2 k.
 Axiom Partition_spec3: forall h h1 h2, Partition h h1 h2 -> forall k, ~dom h1 k -> ~dom h2 k -> hfun h k = None.
 Axiom Partition_spec4: forall h h1 h2, Partition h h1 h2 -> forall k, ~(dom h1 k /\ dom h2 k).
 Axiom Partition_intro: forall h1 h2, (forall k, ~(dom h1 k /\ dom h2 k)) -> exists h, Partition h h1 h2.
-
-Axiom Partition_stable: forall h h1 h2, ~~Partition h h1 h2 -> Partition h h1 h2.
 
 End FHeap.
