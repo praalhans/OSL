@@ -1,7 +1,7 @@
-(* Copyright 2022 Centrum Wiskunde & Informatica *)
+(* Copyright 2022 <anonymized> *)
 
 (* ON SEPERATION LOGIC *)
-(* Author: Hans-Dieter A. Hiep *)
+(* Author: <anonymized> *)
 
 Require Export FunctionalExtensionality.
 Require Export PropExtensionality.
