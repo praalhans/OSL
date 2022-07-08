@@ -1,6 +1,6 @@
 (* Copyright 2022 <anonymized> *)
 
-(* ON SEPERATION LOGIC *)
+(* ON SEPARATION LOGIC *)
 (* Author: <anonymized> *)
 
 Require Export FunctionalExtensionality.
@@ -176,3 +176,4 @@ Proposition iff_split_forall2 {T: Type} (A B: T -> T -> Prop):
   ((forall x y, A x y) <-> (forall x y, B x y)).
 intro; split; intros; apply H; apply H0.
 Qed.
+

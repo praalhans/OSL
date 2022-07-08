@@ -1,6 +1,6 @@
 (* Copyright 2022 <anonymized> *)
 
-(* ON SEPERATION LOGIC *)
+(* ON SEPARATION LOGIC *)
 (* Author: <anonymized> *)
 
 Require Export OnSeparationLogic.Language.
@@ -9,6 +9,10 @@ Module Classical (Export HS: HeapSig).
 
 Module L := Language HS.
 Include L.
+
+(* ============================================================ *)
+(* CLASSICAL SEMANTICS OF ASSERTIONS, SEE FIGURE 2 IN THE PAPER *)
+(* ============================================================ *)
 
 Fixpoint satisfy (h: heap) (s: store) (p: assert): Prop :=
   match p with
@@ -226,6 +230,10 @@ simpl. intros. eapply H.
 apply H0. apply H1.
 Qed.
 
+(* =================================== *)
+(* COINCIDENCE CONDITION ON ASSERTIONS *)
+(* =================================== *)
+
 Proposition acond (h: heap) (p: assert):
   forall (s t: store), eq_restr s t (avar p) ->
     (satisfy h s p <-> satisfy h t p).
@@ -282,7 +290,15 @@ pose proof (econd e0 s t) as I; rewrite I; tauto.
   1,2: assumption.
 Qed.
 
+(* ======== *)
+(* VALIDITY *)
+(* ======== *)
+
 Definition validity (p: assert): Prop := forall h s, satisfy h s p.
+
+(* =========================================== *)
+(* STRONG PARTIAL CORRECTNESS OF HOARE TRIPLES *)
+(* =========================================== *)
 
 Definition strong_partial_correct: hoare -> Prop := fun '(mkhoare p S q) =>
   forall h s, satisfy h s p ->
@@ -305,9 +321,9 @@ rewrite store_update_lookup_same in H.
 exfalso. apply H2. assumption.
 Qed.
 
-(* ============================================ *)
-(* Weakest precondition axiomatization (WP-CSL) *)
-(* ============================================ *)
+(* ================================================== *)
+(* STORE SUBSTITUTION LEMMA, SEE LEMMA 1 IN THE PAPER *)
+(* ================================================== *)
 
 Proposition store_substitution_lemma_p1 (p: assert) (e: expr):
   (forall (x: V) (h: heap) (s: store) (ps: assert),
@@ -390,6 +406,10 @@ try (inversion H; unfold satisfy; apply iff_refl; fail).
   intro; apply IHp1; assumption.
   intro; apply IHp2; assumption.
 Qed.
+
+(* ======================================================== *)
+(* HEAP UPDATE SUBSTITUTION LEMMA, SEE LEMMA 2 IN THE PAPER *)
+(* ======================================================== *)
 
 Proposition heap_update_substitution_lemma_p1 (h: heap) (s: store) (x: V) (e e0 e1: expr):
   satisfy h s (lor (land (equals x e0) (equals e e1)) (land (lnot (equals x e0)) (hasval e0 e1))) <->
@@ -897,6 +917,10 @@ induction p; intros.
     assumption.
 Qed.
 
+(* ======================================================= *)
+(* HEAP CLEAR SUBSTITUTION LEMMA, SEE LEMMA 3 IN THE PAPER *)
+(* ======================================================= *)
+
 Proposition heap_clear_substitution_lemma_p1 (h h1 h2: heap) (k: Z):
   Partition h h1 h2 ->
   Partition (heap_clear h k) (heap_clear h1 k) (heap_clear h2 k).
@@ -1322,6 +1346,10 @@ induction p; intros.
       apply in_or_app. left. apply in_or_app. auto.
 Qed.
 
+(* ========================== *)
+(* SOUNDNESS CONSEQUENCE RULE *)
+(* ========================== *)
+
 Proposition soundness_conseq (p pp q qq: assert) (x: program):
   validity (limp pp p) -> validity (limp q qq) -> strong_partial_correct (mkhoare p x q) ->
   strong_partial_correct (mkhoare pp x qq).
@@ -1342,7 +1370,9 @@ split.
 Qed.
 
 (* ============================================ *)
-(* Weakest precondition axiomatization (WP-CSL) *)
+(* SOUNDNESS AND COMPLETENESS OF                *)
+(* WEAKEST PRECONDITION AXIOMATIZATION (WP-CSL) *)
+(* SEE THEOREM 1 IN THE PAPER                   *)
 (* ============================================ *)
 
 Corollary WPCSL_soundness_basic (p: assert) (x: V) (e: expr):
@@ -1624,7 +1654,9 @@ apply WPCSL_completeness; auto.
 Qed.
 
 (* =============================================== *)
-(* Strongest postcondition axiomatization (SP-CSL) *)
+(* SOUNDNESS AND COMPLETENESS OF                   *)
+(* STRONGEST POSTCONDITION AXIOMATIZATION (SP-CSL) *)
+(* SEE THEOREM 4 IN THE PAPER                      *)
 (* =============================================== *)
 
 Corollary SPCSL_soundness_basic (p: assert) (x y: V) (e: expr):
@@ -2122,7 +2154,9 @@ Qed.
 
 End Classical.
 
-(* To show the used axioms in our development, we make everything concrete: *)
+(* To show all the used axioms in our development, we make everything concrete: *)
+
 Module ClassicalIHeap := Classical IHeap.
 Import ClassicalIHeap.
 Print Assumptions result.
+

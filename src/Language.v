@@ -1,6 +1,6 @@
 (* Copyright 2022 <anonymized> *)
 
-(* ON SEPERATION LOGIC *)
+(* ON SEPARATION LOGIC *)
 (* Author: <anonymized> *)
 
 Require Export OnSeparationLogic.Heap.
@@ -10,8 +10,16 @@ Module Language (Export HS: HeapSig).
 Module H := HeapFacts HS.
 Include H.
 
+(* ========= *)
+(* VARIABLES *)
+(* ========= *)
+
 Definition V := nat.
 Definition dummy: V := 0.
+
+(* ========================================= *)
+(* FRESHNESS OF VARIABLES AND ITS PROPERTIES *)
+(* ========================================= *)
 
 Fixpoint maximum (xs: list V): V :=
   match xs with
@@ -129,6 +137,10 @@ eapply le_trans in H; [|apply H0].
 eapply Nat.nle_succ_diag_l. apply H.
 Qed.
 
+(* =========================================== *)
+(* THE STORE, STORE UPDATE, AND ITS PROPERTIES *)
+(* =========================================== *)
+
 Definition store := V -> Z.
 
 Definition store_update (s: store) (x: V) (v: Z): store :=
@@ -190,6 +202,10 @@ Proposition eq_restr_comm (s t: store) (xs: list V):
   eq_restr s t xs -> eq_restr t s xs.
 unfold eq_restr; intros; symmetry; apply H; assumption.
 Qed.
+
+(* ====================== *)
+(* EXPRESSIONS AND GUARDS *)
+(* ====================== *)
 
 (* Expressions and guards are shallow, but finitely based *)
 Record expr: Set := mkexpr {
@@ -343,6 +359,10 @@ intro. pose proof (proof_irrelevance _ gcond0 gcond1).
 rewrite H1. reflexivity.
 Qed.
 
+(* ================================== *)
+(* INDUCTIVE DEFINITION OF ASSERTIONS *)
+(* ================================== *)
+
 Inductive assert :=
 | test: guard -> assert
 | hasval: expr -> expr -> assert
@@ -453,6 +473,10 @@ Qed.
 
 Definition Some_assert (p: assert): option assert := Some p.
 Coercion Some_assert: assert >-> option.
+
+(* ================================================== *)
+(* STANDARD FIRST-ORDER CAPTURE-AVOIDING SUBSTITUTION *)
+(* ================================================== *)
 
 Fixpoint asub (p: assert) (x: V) (e: expr): option assert :=
   match p with
@@ -669,6 +693,10 @@ try (((rewrite aoccur_split_land in H0;
     apply H0; right; assumption | apply in_or_app; auto].
 Qed.
 
+(* ======================================================= *)
+(* HEAP UPDATE SUBSTITUTION, SEE DEFINITION 2 IN THE PAPER *)
+(* ======================================================= *)
+
 Fixpoint asub_heap_update (p: assert) (x: V) (e: expr): option assert :=
   match p with
   | test g => test g
@@ -778,6 +806,10 @@ try (apply asub_heap_update_defined_step1; assumption; fail).
     eapply n. apply H0. apply H3.
     eapply H2. apply H0. apply H3.
 Qed.
+
+(* ====================================================== *)
+(* HEAP CLEAR SUBSTITUTION, SEE DEFINITION 3 IN THE PAPER *)
+(* ====================================================== *)
 
 Fixpoint asub_heap_clear (p: assert) (x: V): option assert :=
   match p with
@@ -896,6 +928,10 @@ try (apply asub_heap_clear_defined_step2; assumption; fail).
     apply H2; auto. apply H3; auto.
 Qed.
 
+(* =============================== *)
+(* BASIC INSTRUCTIONS AND PROGRAMS *)
+(* =============================== *)
+
 Variant assignment :=
 | basic: V -> expr -> assignment
 | lookup: V -> expr -> assignment
@@ -907,6 +943,10 @@ Inductive program :=
 | assign: assignment -> program.
 (* | comp: program -> program -> program. *)
 Coercion assign: assignment >-> program.
+
+(* ================================================ *)
+(* SEMANTICS OF PROGRAMS, SEE FIGURE 1 IN THE PAPER *)
+(* ================================================ *)
 
 Inductive bigstep: program -> heap * store -> option (heap * store) -> Prop :=
 | step_basic (x: V) (e: expr) (h: heap) (s: store):
@@ -945,6 +985,10 @@ Inductive bigstep: program -> heap * store -> option (heap * store) -> Prop :=
     bigstep S2 (h', s') None ->
     bigstep (comp S1 S2) (h, s) None.*)
 
+(* ============= *)
+(* HOARE TRIPLES *)
+(* ============= *)
+
 Inductive hoare :=
 | mkhoare: assert -> program -> assert -> hoare.
 
@@ -976,9 +1020,9 @@ Definition restrict_pre: hoare -> Prop := fun '(mkhoare p x _) =>
 
 Definition restrict (pSq: hoare): Prop := restrict_post pSq /\ restrict_pre pSq.
 
-(* ============================================ *)
-(* Weakest precondition axiomatization (WP-CSL) *)
-(* ============================================ *)
+(* ======================================================================= *)
+(* WEAKEST PRECONDITION AXIOMATIZATION (WP-CSL), SEE FIGURE 3 IN THE PAPER *)
+(* ======================================================================= *)
 
 Inductive WPCSL (Gamma: assert -> Prop): hoare -> Prop :=
 | wpc_basic (p ps: assert) (x: V) (e: expr):
@@ -1002,9 +1046,9 @@ Inductive WPCSL (Gamma: assert -> Prop): hoare -> Prop :=
     Gamma (limp pp p) -> WPCSL Gamma (mkhoare p x q) -> Gamma (limp q qq) ->
     WPCSL Gamma (mkhoare pp x qq).
 
-(* =============================================== *)
-(* Strongest postcondition axiomatization (SP-CSL) *)
-(* =============================================== *)
+(* ========================================================================== *)
+(* STRONGEST POSTCONDITION AXIOMATIZATION (SP-CSL), SEE FIGURE 6 IN THE PAPER *)
+(* ========================================================================== *)
 
 Inductive SPCSL (Gamma: assert -> Prop): hoare -> Prop :=
 | spc_basic (p ps: assert) (x y: V) (e: expr):
@@ -1034,3 +1078,4 @@ Inductive SPCSL (Gamma: assert -> Prop): hoare -> Prop :=
     SPCSL Gamma (mkhoare pp x qq).
 
 End Language.
+

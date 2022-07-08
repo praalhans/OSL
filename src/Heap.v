@@ -1,11 +1,17 @@
 (* Copyright 2022 <anonymized> *)
 
-(* ON SEPERATION LOGIC *)
+(* ON SEPARATION LOGIC *)
 (* Author: <anonymized> *)
 
 Require Export OnSeparationLogic.Util.
 
 Local Open Scope Z_scope.
+
+(* ======================= *)
+(* Axiomatization of heaps *)
+(* ======================= *)
+
+(* SEE BEGINNING OF SECTION 2 OF THE PAPER. *)
 
 Module Type HeapSig.
 
@@ -333,3 +339,4 @@ unfold Partition; split; [|split; [|split]]; intros.
 Qed.
 
 End IHeap.
+
