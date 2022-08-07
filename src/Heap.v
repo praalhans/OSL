@@ -49,7 +49,9 @@ Axiom Partition_spec1: forall h h1 h2, Partition h h1 h2 -> forall k, dom h1 k -
 Axiom Partition_spec2: forall h h1 h2, Partition h h1 h2 -> forall k, dom h2 k -> hfun h k = hfun h2 k.
 Axiom Partition_spec3: forall h h1 h2, Partition h h1 h2 -> forall k, ~dom h1 k -> ~dom h2 k -> hfun h k = None.
 Axiom Partition_spec4: forall h h1 h2, Partition h h1 h2 -> forall k, ~(dom h1 k /\ dom h2 k).
-Axiom Partition_intro: forall h1 h2, (forall k, ~(dom h1 k /\ dom h2 k)) -> exists h, Partition h h1 h2.
+Axiom Partition_intro1: forall h1 h2, (forall k, ~(dom h1 k /\ dom h2 k)) -> exists h, Partition h h1 h2.
+(* Needed for intuitionistic semantics: *)
+Axiom Partition_intro2: forall h h1, (forall k, dom h1 k -> hfun h k = hfun h1 k) -> exists h2, Partition h h1 h2.
 
 End HeapSig.
 
@@ -184,7 +186,7 @@ Qed.
 Proposition Partition_comm (h h1 h2: heap):
   Partition h h1 h2 -> Partition h h2 h1.
 intro.
-destruct (Partition_intro h2 h1).
+destruct (Partition_intro1 h2 h1).
 intros; rewrite and_comm; eapply Partition_spec4; apply H.
 cut (h = x). intro. rewrite H1. assumption.
 apply heap_ext; intro.
@@ -215,14 +217,6 @@ eapply Partition_spec3.
 apply H. assumption. assumption.
 Qed.
 
-Proposition Partition_dom_right (h h1 h2: heap) (x: Z):
-  Partition h h1 h2 -> dom h x -> dom h1 x -> ~dom h2 x.
-intros.
-destruct (dom_dec h2 x).
-exfalso. eapply Partition_spec4. apply H. split. apply H1. apply H2.
-assumption.
-Qed.
-
 Proposition Partition_dom_inv_left (h h1 h2: heap) (x: Z):
   Partition h h1 h2 -> dom h1 x -> dom h x.
 intros. destruct (dom_dec h x); auto.
@@ -239,6 +233,22 @@ exfalso.
 pose proof (Partition_spec2 _ _ _ H x H0).
 rewrite dom_spec in *. rewrite H2 in H1.
 auto.
+Qed.
+
+Proposition Partition_dom_right1 (h h1 h2: heap) (x: Z):
+  Partition h h1 h2 -> dom h1 x -> ~dom h2 x.
+intros.
+destruct (dom_dec h2 x).
+exfalso. eapply Partition_spec4. apply H. split. apply H0. apply H1.
+assumption.
+Qed.
+
+Proposition Partition_dom_right2 (h h1 h2: heap) (x: Z):
+  Partition h h1 h2 -> dom h2 x -> ~dom h1 x.
+intros.
+destruct (dom_dec h1 x).
+exfalso. eapply Partition_spec4. apply H. split. apply H1. apply H0.
+assumption.
 Qed.
 
 End HeapFacts.
@@ -324,7 +334,7 @@ unfold Partition; intros; destruct H as (H & (H1 & (H2 & H3))).
 apply H1.
 Qed.
 
-Proposition Partition_intro: forall h1 h2, (forall k, ~(dom h1 k /\ dom h2 k)) -> exists h, Partition h h1 h2.
+Proposition Partition_intro1: forall h1 h2, (forall k, ~(dom h1 k /\ dom h2 k)) -> exists h, Partition h h1 h2.
 intros.
 exists (fun n => if option_dec (h1 n) then h1 n else h2 n).
 unfold Partition; split; [|split; [|split]]; intros.
@@ -338,5 +348,18 @@ unfold Partition; split; [|split; [|split]]; intros.
   reflexivity.
 Qed.
 
-End IHeap.
+Proposition Partition_intro2: forall h h1, (forall k, dom h1 k -> hfun h k = hfun h1 k) -> exists h2, Partition h h1 h2.
+intros.
+exists (fun n => if option_dec (h1 n) then None else h n).
+unfold Partition; split; [|split; [|split]]; intros.
+- unfold dom in *. destruct (option_dec (h1 k)).
+    left. destruct e. intro. rewrite H1 in H2. inversion H2.
+    right; auto.
+- unfold dom in *. intro; destruct H0.
+  destruct (option_dec (h1 k)). apply H1; auto. apply H0; auto.
+- apply H; assumption.
+- unfold dom in *. destruct (option_dec (h1 k)).
+  exfalso; apply H0; auto. reflexivity.
+Qed.
 
+End IHeap.
