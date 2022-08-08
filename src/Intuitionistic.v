@@ -229,6 +229,59 @@ intros. generalize dependent s. generalize dependent h'. revert h. induction p; 
   eapply H. apply H3. apply H2.
 Qed.
 
+(* =================================== *)
+(* COINCIDENCE CONDITION ON ASSERTIONS *)
+(* =================================== *)
 
+Proposition acond (h: heap) (p: assert):
+  forall (s t: store), eq_restr s t (avar p) ->
+    (satisfy h s p <-> satisfy h t p).
+Admitted.
+
+(* ======== *)
+(* VALIDITY *)
+(* ======== *)
+
+Definition validity (p: assert): Prop := forall h s, satisfy h s p.
+
+(* =========================================== *)
+(* STRONG PARTIAL CORRECTNESS OF HOARE TRIPLES *)
+(* =========================================== *)
+
+Definition strong_partial_correct: hoare -> Prop := fun '(mkhoare p S q) =>
+  forall h s, satisfy h s p ->
+    ~bigstep S (h, s) None /\
+    forall h' s', bigstep S (h, s) (Some (h', s')) -> satisfy h' s' q.
+
+(* ======================== *)
+(* STORE SUBSTITUTION LEMMA *)
+(* ======================== *)
+
+Lemma store_substitution_lemma (h: heap) (s: store) (p: assert) (x: V) (e: expr):
+  forall ps, asub p x e = Some ps ->
+    (satisfy h s ps <-> satisfy h (store_update s x (e s)) p).
+Admitted.
+
+(* ========================================== *)
+(* CONDITIONAL HEAP UPDATE SUBSTITUTION LEMMA *)
+(* ========================================== *)
+
+Lemma cheap_update_substitution_lemma (h: heap) (s: store) (p: assert) (x: V) (e: expr):
+  dom h (s x) ->
+  forall ps, asub_cheap_update p x e = Some ps ->
+    (satisfy h s ps <-> satisfy (heap_update h (s x) (e s)) s p).
+Admitted.
+
+(* ========================================= *)
+(* CONDITIONAL HEAP CLEAR SUBSTITUTION LEMMA *)
+(* ========================================= *)
+
+Lemma cheap_clear_substitution_lemma (h: heap) (s: store) (p: assert) (x: V):
+  dom h (s x) ->
+  forall ps, asub_cheap_clear p x = Some ps ->
+    (satisfy h s ps <-> satisfy (heap_clear h (s x)) s p).
+Admitted.
+
+End Intuitionistic.
 
 

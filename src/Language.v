@@ -928,6 +928,68 @@ try (apply asub_heap_clear_defined_step2; assumption; fail).
     apply H2; auto. apply H3; auto.
 Qed.
 
+(* ==================================== *)
+(* CONDITIONAL HEAP UPDATE SUBSTITUTION *)
+(* ==================================== *)
+
+Fixpoint asub_cheap_update (p: assert) (x: V) (e: expr): option assert :=
+  match p with
+  | test g => test g
+  | hasval e1 e2 => (lor (land (equals x e1) (equals e e2)) (land (lnot (equals x e1)) (hasval e1 e2)))
+  | land p q => option_app (asub_cheap_update p x e) (fun ps =>
+      option_app (asub_cheap_update q x e) (fun qs => land ps qs))
+  | lor p q => option_app (asub_cheap_update p x e) (fun ps =>
+      option_app (asub_cheap_update q x e) (fun qs => lor ps qs))
+  | limp p q => option_app (asub_cheap_update p x e) (fun ps =>
+      option_app (asub_cheap_update q x e) (fun qs => limp ps qs))
+  | lexists y p => if in_dec Nat.eq_dec y (x :: evar e) then None else
+      option_app (asub_cheap_update p x e) (fun ps => lexists y ps)
+  | lforall y p => if in_dec Nat.eq_dec y (x :: evar e) then None else
+      option_app (asub_cheap_update p x e) (fun ps => lforall y ps)
+  | sand p q => option_app (asub_cheap_update p x e) (fun ps =>
+      option_app (asub_cheap_update q x e) (fun qs => limp (hasvaldash x)
+        (lor (sand (land ps (hasvaldash x)) q) (sand p (land qs (hasvaldash x))))))
+  | simp p q => if sublist_part_dec Nat.eq_dec (x :: evar e) (abound p) then None else
+      option_app (asub_cheap_update q x e) (fun qs => limp (hasvaldash x)
+        (simp p qs))
+  end.
+
+Proposition asub_cheap_update_defined (p: assert) (x: V) (e: expr):
+  (forall y, In y (x :: evar e) -> ~In y (abound p)) <-> exists q, asub_cheap_update p x e = Some q.
+Admitted.
+
+(* =================================== *)
+(* CONDITIONAL HEAP CLEAR SUBSTITUTION *)
+(* =================================== *)
+
+Fixpoint asub_cheap_clear (p: assert) (x: V): option assert :=
+  match p with
+  | test g => test g
+  | hasval e1 e2 => (land (lnot (equals x e1)) (hasval e1 e2))
+  | land p q => option_app (asub_cheap_clear p x) (fun ps =>
+      option_app (asub_cheap_clear q x) (fun qs => land ps qs))
+  | lor p q => option_app (asub_cheap_clear p x) (fun ps =>
+      option_app (asub_cheap_clear q x) (fun qs => lor ps qs))
+  | limp p q => option_app (asub_cheap_clear p x) (fun ps =>
+      option_app (asub_cheap_clear q x) (fun qs => limp ps qs))
+  | lexists y p => if Nat.eq_dec y x then None else
+      option_app (asub_cheap_clear p x) (fun ps => lexists y ps)
+  | lforall y p => if Nat.eq_dec y x then None else
+      option_app (asub_cheap_clear p x) (fun ps => lforall y ps)
+  | sand p q => if in_dec Nat.eq_dec x (abound p) then None else
+      option_app (asub_cheap_clear q x) (fun qs =>
+        sand p (land qs (hasvaldash x)))
+  | simp p q => let y := fresh (x :: aoccur p ++ aoccur q) in
+      option_app (asub_cheap_clear q x) (fun qs =>
+        option_app (asub_cheap_update p x y) (fun pss =>
+          option_app (asub_cheap_update q x y) (fun qss =>
+            (land (simp p qs) (lforall y (simp pss qss))))))
+  end.
+
+Proposition asub_cheap_clear_defined (p: assert) (x: V):
+  ~In x (abound p) <-> exists q, asub_cheap_clear p x = Some q.
+Admitted.
+
 (* =============================== *)
 (* BASIC INSTRUCTIONS AND PROGRAMS *)
 (* =============================== *)
