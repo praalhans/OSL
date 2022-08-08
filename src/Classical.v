@@ -1490,16 +1490,16 @@ split.
 Qed.
 
 Theorem WPCSL_soundness (Gamma: assert -> Prop) (O: forall p, Gamma p -> validity p):
-  forall pSq, WPCSL Gamma pSq -> strong_partial_correct pSq.
-intros. induction H.
+  forall pSq, inhabited (WPCSL Gamma pSq) -> strong_partial_correct pSq.
+intros. destruct H. induction H.
 - apply WPCSL_soundness_basic; assumption.
 - apply WPCSL_soundness_lookup; assumption.
 - apply WPCSL_soundness_mutation; assumption.
 - apply WPCSL_soundness_new; assumption.
 - apply WPCSL_soundness_dispose; assumption.
-- apply O in H. apply O in H1.
+- apply O in g. apply O in g0.
   eapply soundness_conseq.
-  apply H. apply H1. assumption.
+  apply g. apply g0. assumption.
 Qed.
 
 Corollary WPCSL_weakest_basic (q p: assert) (x: V) (e: expr):
@@ -1611,10 +1611,10 @@ apply H1. apply step_dispose; auto.
 Qed.
 
 Theorem WPCSL_completeness (Gamma: assert -> Prop) (O: forall p, validity p -> Gamma p):
-  forall pSq, restrict_post pSq -> strong_partial_correct pSq -> WPCSL Gamma pSq.
+  forall pSq, restrict_post pSq -> strong_partial_correct pSq -> inhabited (WPCSL Gamma pSq).
 intros. destruct pSq as (p, S, q); destruct S; destruct a; unfold restrict_post in H.
 - rewrite asub_defined with (x := v) in H.
-  destruct H.
+  destruct H. constructor.
   apply wpc_conseq with (p := x) (q := q).
   apply O. eapply WPCSL_weakest_basic. apply H0. auto.
   apply wpc_basic; auto.
@@ -1625,6 +1625,7 @@ intros. destruct pSq as (p, S, q); destruct S; destruct a; unfold restrict_post 
   intros. simpl in H2. destruct H2. rewrite <- H2. rewrite Heqy.
   apply fresh_notInGeneral. intros. right. apply in_or_app. left. apply in_or_app. auto. inversion H2.
   apply H1 in H2; clear H1; destruct H2.
+  constructor.
   apply wpc_conseq with (p := (lexists y (land (hasval e y) x))) (q := q).
   apply O. eapply WPCSL_weakest_lookup. apply H0.
   rewrite Heqy. apply fresh_notIn. auto.
@@ -1632,16 +1633,19 @@ intros. destruct pSq as (p, S, q); destruct S; destruct a; unfold restrict_post 
   rewrite Heqy. apply fresh_notIn.
   apply O. intro. intro. rewrite satisfy_limp. tauto.
 - rewrite asub_heap_update_defined in H. destruct H.
+  constructor.
   apply wpc_conseq with (p := land (hasvaldash v) x) (q := q).
   apply O. eapply WPCSL_weakest_mutation. apply H0. auto.
   apply wpc_mutation. auto.
   apply O. intro. intro. rewrite satisfy_limp. tauto.
 - destruct H. rewrite asub_heap_update_defined in H1. destruct H1.
+  constructor.
   apply wpc_conseq with (p := lforall v (limp (lnot (hasvaldash v)) x)) (q := q).
   apply O. eapply WPCSL_weakest_allocation. apply H0. auto. auto.
   apply wpc_new. auto. auto.
   apply O. intro. intro. rewrite satisfy_limp. tauto.
 - rewrite asub_heap_clear_defined in H. destruct H.
+  constructor.
   apply wpc_conseq with (p := land (hasvaldash v) x) (q := q).
   apply O. eapply WPCSL_weakest_dispose. apply H0. auto.
   apply wpc_dispose. auto.
@@ -1649,7 +1653,7 @@ intros. destruct pSq as (p, S, q); destruct S; destruct a; unfold restrict_post 
 Qed.
 
 Corollary WPCSL_soundness_completeness:
-  forall pSq, restrict_post pSq -> WPCSL validity pSq <-> strong_partial_correct pSq.
+  forall pSq, restrict_post pSq -> inhabited (WPCSL validity pSq) <-> strong_partial_correct pSq.
 intros. split.
 apply WPCSL_soundness; auto.
 apply WPCSL_completeness; auto.
@@ -1859,16 +1863,16 @@ rewrite dom_spec in H2. exfalso. auto.
 Qed.
 
 Theorem SPCSL_soundness (Gamma: assert -> Prop) (O: forall p, Gamma p -> validity p):
-  forall pSq, SPCSL Gamma pSq -> strong_partial_correct pSq.
-intros. induction H.
+  forall pSq, inhabited (SPCSL Gamma pSq) -> strong_partial_correct pSq.
+intros. destruct H. induction H.
 - apply SPCSL_soundness_basic; assumption.
 - apply SPCSL_soundness_lookup; assumption.
 - apply SPCSL_soundness_mutation; assumption.
-- eapply SPCSL_soundness_new. apply H. apply H0. apply H1. assumption.
+- eapply SPCSL_soundness_new. apply n. apply n0. apply e0. assumption.
 - apply SPCSL_soundness_dispose; assumption.
-- apply O in H. apply O in H1.
+- apply O in g. apply O in g0.
   eapply soundness_conseq.
-  apply H. apply H1. assumption.
+  apply g. apply g0. assumption.
 Qed.
 
 Corollary SPCSL_strongest_basic (p q: assert) (x y: V) (e: expr):
@@ -2043,7 +2047,7 @@ rewrite store_update_lookup_diff; auto.
 Qed.
 
 Theorem SPCSL_completeness (Gamma: assert -> Prop) (O: forall p, validity p -> Gamma p):
-  forall pSq, restrict_pre pSq -> strong_partial_correct pSq -> SPCSL Gamma pSq.
+  forall pSq, restrict_pre pSq -> strong_partial_correct pSq -> inhabited (SPCSL Gamma pSq).
 intros. destruct pSq as (p, S, q); destruct S; destruct a; unfold restrict_pre in H.
 - remember (fresh (v :: aoccur p ++ evar e ++ aoccur q)) as y.
   pose proof (asub_defined p v y).
@@ -2051,6 +2055,7 @@ intros. destruct pSq as (p, S, q); destruct S; destruct a; unfold restrict_pre i
     simpl in H2. destruct H2; auto. rewrite <- H2. rewrite Heqy.
     apply fresh_notInGeneral. intros. right. apply in_or_app. left. apply in_or_app; auto.
   apply H1 in H2; clear H1; destruct H2.
+  constructor.
   apply spc_conseq with (p := p) (q := (lexists y (land x (equals (esub e v y) v)))).
   apply O. intro. intro. rewrite satisfy_limp; tauto.
   apply spc_basic. rewrite Heqy. apply fresh_notInGeneral. intros.
@@ -2065,6 +2070,7 @@ intros. destruct pSq as (p, S, q); destruct S; destruct a; unfold restrict_pre i
     simpl in H2. destruct H2; auto. rewrite <- H2. rewrite Heqy.
     apply fresh_notInGeneral. intros. right. apply in_or_app. left. apply in_or_app; auto.
   apply H1 in H2; clear H1; destruct H2.
+  constructor.
   apply spc_conseq with (p := (land p (hasvaldash e))) (q := (lexists y (land x (hasval (esub e v y) v)))).
   apply O. intro. intros. rewrite satisfy_limp. intro. unfold strong_partial_correct in H0.
     rewrite satisfy_land. split; auto. rewrite satisfy_hasvaldash.
@@ -2084,6 +2090,7 @@ intros. destruct pSq as (p, S, q); destruct S; destruct a; unfold restrict_pre i
     rewrite Heqy. apply fresh_notInGeneral. intros. right. apply in_or_app. left.
     apply in_or_app; auto. inversion H2.
   apply H1 in H2; clear H1; destruct H2.
+  constructor.
   apply spc_conseq with (p := (land p (hasvaldash v))) (q := land (lexists y x) (hasval v e)).
   apply O. intro. intro. rewrite satisfy_limp; intro.
     rewrite satisfy_land. split; auto. rewrite satisfy_hasvaldash.
@@ -2108,6 +2115,7 @@ intros. destruct pSq as (p, S, q); destruct S; destruct a; unfold restrict_pre i
     eapply fresh_notIn with (xs := y :: aoccur p ++ evar e ++ aoccur q).
     left. assumption. eapply (abound_asub _ _ _ H3 _ H1); assumption.
   apply H2 in H4; clear H2; destruct H4.
+  constructor.
   apply spc_conseq with (p := p) (q := land x0 (hasval v e)).
   apply O. intro. intros. rewrite satisfy_limp; tauto.
   eapply spc_new; [ apply H | | apply H1 | ].
@@ -2124,6 +2132,7 @@ intros. destruct pSq as (p, S, q); destruct S; destruct a; unfold restrict_pre i
     rewrite Heqy. apply fresh_notInGeneral. intros. right. apply in_or_app. left.
     apply in_or_app; auto. inversion H2.
   apply H1 in H2; clear H1; destruct H2.
+  constructor.
   apply spc_conseq with (p := (land p (hasvaldash v))) (q := land (lexists y x) (lnot (hasvaldash v))).
   apply O. intro. intro. rewrite satisfy_limp; intro.
     rewrite satisfy_land. split; auto. rewrite satisfy_hasvaldash.
@@ -2139,14 +2148,14 @@ intros. destruct pSq as (p, S, q); destruct S; destruct a; unfold restrict_pre i
 Qed.
 
 Corollary SPCSL_soundness_completeness:
-  forall pSq, restrict_pre pSq -> SPCSL validity pSq <-> strong_partial_correct pSq.
+  forall pSq, restrict_pre pSq -> inhabited (SPCSL validity pSq) <-> strong_partial_correct pSq.
 intros. split.
 apply SPCSL_soundness. tauto.
 apply SPCSL_completeness. tauto. tauto.
 Qed.
 
 Corollary result:
-  forall pSq, restrict pSq -> SPCSL validity pSq <-> WPCSL validity pSq.
+  forall pSq, restrict pSq -> inhabited (SPCSL validity pSq) <-> inhabited (WPCSL validity pSq).
 intros. destruct H. split.
 intro. apply SPCSL_soundness_completeness in H1; auto.
 apply WPCSL_soundness_completeness; auto.

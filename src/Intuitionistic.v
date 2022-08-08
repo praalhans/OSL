@@ -229,6 +229,129 @@ intros. generalize dependent s. generalize dependent h'. revert h. induction p; 
   eapply H. apply H3. apply H2.
 Qed.
 
+Proposition satisfy_land (h: heap) (s: store) (p q: assert):
+  satisfy h s (land p q) <-> satisfy h s p /\ satisfy h s q.
+simpl; split; intro; auto.
+Qed.
+
+Proposition satisfy_lor (h: heap) (s: store) (p q: assert):
+  satisfy h s (lor p q) <-> satisfy h s p \/ satisfy h s q.
+simpl; split; intro; auto.
+Qed.
+
+Proposition satisfy_limp (h: heap) (s: store) (p q: assert):
+  satisfy h s (limp p q) <-> (forall h', Extends h h' -> satisfy h' s p -> satisfy h' s q).
+simpl; split; intro; auto.
+Qed.
+
+Proposition satisfy_limp_elim (h: heap) (s: store) (p q: assert):
+  satisfy h s (limp p q) -> satisfy h s p -> satisfy h s q.
+intros.
+rewrite satisfy_limp in H.
+specialize H with h.
+pose proof (Extends_refl h).
+apply H in H1; auto.
+Qed.
+
+Proposition satisfy_lnot (h: heap) (s: store) (p: assert):
+  satisfy h s (lnot p) <-> (forall h', Extends h h' -> ~satisfy h' s p).
+simpl; split; intros.
+intro. specialize H with h'. apply H in H0; auto. inversion H0.
+exfalso. eapply H. apply H0. auto.
+Qed.
+
+Proposition satisfy_lnot_elim (h: heap) (s: store) (p: assert):
+  satisfy h s (lnot p) -> ~satisfy h s p.
+intros. intro.
+rewrite satisfy_lnot in H.
+specialize H with h.
+pose proof (Extends_refl h).
+apply H in H1; auto.
+Qed.
+
+Proposition satisfy_lforall (h: heap) (s: store) (x: V) (p: assert):
+  satisfy h s (lforall x p) <-> forall v, satisfy h (store_update s x v) p.
+simpl; split; intros; auto.
+Qed.
+
+Proposition satisfy_lexists (h: heap) (s: store) (x: V) (p: assert):
+  satisfy h s (lexists x p) <-> exists v, satisfy h (store_update s x v) p.
+simpl; split; intros; auto.
+Qed.
+
+Proposition satisfy_equals (h: heap) (s: store) (e0 e1: expr):
+  satisfy h s (equals e0 e1) <-> e0 s = e1 s.
+simpl. destruct (Z.eq_dec (eval e0 s) (eval e1 s)).
+rewrite e. tauto. split. intro. inversion H.
+intro. exfalso. apply n. assumption.
+Qed.
+
+Proposition satisfy_hasval (h: heap) (s: store) (e1 e2: expr):
+  satisfy h s (hasval e1 e2) <-> h (e1 s) = e2 s.
+split; intro.
+simpl in H. destruct H.
+apply H0.
+simpl. split.
+apply dom_spec. intro.
+rewrite H in H0. inversion H0.
+assumption.
+Qed.
+
+Proposition satisfy_hasvaldash (h: heap) (s: store) (e: expr):
+  satisfy h s (hasvaldash e) <-> dom h (e s).
+split; intro.
+- unfold hasvaldash in H.
+  remember (fresh (evar e)).
+  simpl in H. destruct H. destruct H.
+  rewrite store_update_lookup_same in H0.
+  rewrite dom_spec; intro.
+  assert (e s = e (store_update s v x)). {
+  apply econd. intro; intro.
+  unfold store_update.
+  destruct (Nat.eq_dec v x0).
+  rewrite <- e0 in H2.
+  rewrite Heqv in H2.
+  exfalso. eapply fresh_notIn. apply H2.
+  reflexivity. }
+  rewrite H2 in H1.
+  rewrite H0 in H1.
+  inversion H1.
+- simpl.
+  apply dom_spec in H.
+  remember (h (e s)). destruct o.
+  2: exfalso; apply H; auto.
+  clear H. exists z.
+  remember (fresh (evar e)).
+  rewrite store_update_lookup_same.
+  assert (e s = e (store_update s v z)). {
+  apply econd. intro; intro.
+  unfold store_update.
+  destruct (Nat.eq_dec v x).
+  rewrite <- e0 in H.
+  rewrite Heqv in H.
+  exfalso. eapply fresh_notIn. apply H.
+  reflexivity. }
+  rewrite <- H. split.
+  apply dom_spec. intro. exfalso. rewrite <- Heqo in H0. inversion H0.
+  rewrite <- Heqo. reflexivity.
+Qed.
+
+Proposition satisfy_sand (h: heap) (s: store) (p q: assert):
+  satisfy h s (sand p q) <->
+  (exists h1 h2, Partition h h1 h2 /\ satisfy h1 s p /\ satisfy h2 s q).
+split; intro; auto.
+Qed.
+
+Proposition satisfy_simp (h: heap) (s: store) (p q: assert):
+  satisfy h s (simp p q) <->
+  (forall h' h'', Partition h'' h h' -> satisfy h' s p -> satisfy h'' s q).
+split; intro.
+intros.
+eapply H. apply H0. apply H1.
+simpl. intros. eapply H.
+apply H0. apply H1.
+Qed.
+
 (* =================================== *)
 (* COINCIDENCE CONDITION ON ASSERTIONS *)
 (* =================================== *)
@@ -280,6 +403,43 @@ Lemma cheap_clear_substitution_lemma (h: heap) (s: store) (p: assert) (x: V):
   dom h (s x) ->
   forall ps, asub_cheap_clear p x = Some ps ->
     (satisfy h s ps <-> satisfy (heap_clear h (s x)) s p).
+Admitted.
+
+(* ========================== *)
+(* SOUNDNESS CONSEQUENCE RULE *)
+(* ========================== *)
+
+Proposition soundness_conseq (p pp q qq: assert) (x: program):
+  validity (limp pp p) -> validity (limp q qq) -> strong_partial_correct (mkhoare p x q) ->
+  strong_partial_correct (mkhoare pp x qq).
+intros.
+intro. intros.
+unfold strong_partial_correct in H1.
+specialize H1 with h s.
+unfold validity in *.
+specialize H with h s.
+rewrite satisfy_limp in H.
+specialize H with h.
+pose proof (Extends_refl h).
+apply H in H3; clear H; auto.
+apply H1 in H3; clear H1. destruct H3.
+split; auto.
+intros.
+specialize H0 with h' s'.
+rewrite satisfy_limp in H0.
+specialize H0 with h'.
+pose proof (Extends_refl h').
+apply H0 in H4; auto.
+Qed.
+
+(* ============================================ *)
+(* SOUNDNESS AND COMPLETENESS OF                *)
+(* WEAKEST PRECONDITION AXIOMATIZATION (WP-ISL) *)
+(* ============================================ *)
+
+Corollary WPISL_soundness_basic (p: assert) (x: V) (e: expr):
+  forall ps, asub p x e = Some ps ->
+    strong_partial_correct (mkhoare ps (basic x e) p).
 Admitted.
 
 End Intuitionistic.

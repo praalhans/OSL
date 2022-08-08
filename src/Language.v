@@ -1086,7 +1086,7 @@ Definition restrict (pSq: hoare): Prop := restrict_post pSq /\ restrict_pre pSq.
 (* WEAKEST PRECONDITION AXIOMATIZATION (WP-CSL), SEE FIGURE 3 IN THE PAPER *)
 (* ======================================================================= *)
 
-Inductive WPCSL (Gamma: assert -> Prop): hoare -> Prop :=
+Inductive WPCSL (Gamma: assert -> Prop): hoare -> Set :=
 | wpc_basic (p ps: assert) (x: V) (e: expr):
     asub p x e = Some ps ->
     WPCSL Gamma (mkhoare ps (basic x e) p)
@@ -1112,7 +1112,7 @@ Inductive WPCSL (Gamma: assert -> Prop): hoare -> Prop :=
 (* STRONGEST POSTCONDITION AXIOMATIZATION (SP-CSL), SEE FIGURE 6 IN THE PAPER *)
 (* ========================================================================== *)
 
-Inductive SPCSL (Gamma: assert -> Prop): hoare -> Prop :=
+Inductive SPCSL (Gamma: assert -> Prop): hoare -> Set :=
 | spc_basic (p ps: assert) (x y: V) (e: expr):
     ~In y (x :: aoccur p ++ evar e) ->
     asub p x y = Some ps ->
@@ -1138,6 +1138,32 @@ Inductive SPCSL (Gamma: assert -> Prop): hoare -> Prop :=
 | spc_conseq (p pp q qq: assert) (x: program):
     Gamma (limp pp p) -> SPCSL Gamma (mkhoare p x q) -> Gamma (limp q qq) ->
     SPCSL Gamma (mkhoare pp x qq).
+
+(* ============================================ *)
+(* WEAKEST PRECONDITION AXIOMATIZATION (WP-ISL) *)
+(* ============================================ *)
+
+Inductive WPISL (Gamma: assert -> Prop): hoare -> Set :=
+| wpi_basic (p ps: assert) (x: V) (e: expr):
+    asub p x e = Some ps ->
+    WPISL Gamma (mkhoare ps (basic x e) p)
+| wpi_lookup (p ps: assert) (x y: V) (e: expr):
+    ~In y (x :: aoccur p ++ evar e) ->
+    asub p x y = ps ->
+    WPISL Gamma (mkhoare (lexists y (land (hasval e y) ps)) (lookup x e) p)
+| wpi_mutation (p ps: assert) (x: V) (e: expr):
+    asub_cheap_update p x e = ps ->
+    WPISL Gamma (mkhoare (land (hasvaldash x) ps) (mutation x e) p)
+| wpi_new (p ps: assert) (x: V) (e: expr):
+    ~In x (evar e) ->
+    asub_cheap_update p x e = ps ->
+    WPISL Gamma (mkhoare (lforall x (lor (hasvaldash x) ps)) (new x e) p)
+| wpi_dispose (p ps: assert) (x: V):
+    asub_cheap_clear p x = ps ->
+    WPISL Gamma (mkhoare (land (hasvaldash x) ps) (dispose x) p)
+| wpi_conseq (p pp q qq: assert) (x: program):
+    Gamma (limp pp p) -> WPCSL Gamma (mkhoare p x q) -> Gamma (limp q qq) ->
+    WPISL Gamma (mkhoare pp x qq).
 
 End Language.
 
