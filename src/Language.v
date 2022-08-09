@@ -1165,5 +1165,36 @@ Inductive WPISL (Gamma: assert -> Prop): hoare -> Set :=
     Gamma (limp pp p) -> WPISL Gamma (mkhoare p x q) -> Gamma (limp q qq) ->
     WPISL Gamma (mkhoare pp x qq).
 
+(* =============================================== *)
+(* STRONGEST POSTCONDITION AXIOMATIZATION (SP-ISL) *)
+(* =============================================== *)
+
+Inductive SPISL (Gamma: assert -> Prop): hoare -> Set :=
+| spi_basic (p ps: assert) (x y: V) (e: expr):
+    ~In y (x :: aoccur p ++ evar e) ->
+    asub p x y = Some ps ->
+    SPISL Gamma (mkhoare p (basic x e) (lexists y (land ps (equals (esub e x y) x))))
+| spi_lookup (p ps: assert) (x y: V) (e: expr):
+    ~In y (x :: aoccur p ++ evar e) ->
+    asub p x y = Some ps ->
+    SPISL Gamma (mkhoare (land p (hasvaldash e)) (lookup x e) (lexists y (land ps (hasval (esub e x y) x))))
+| spi_mutation (p ps: assert) (x y: V) (e: expr):
+    ~In y (x :: aoccur p ++ evar e) ->
+    asub_cheap_update p x y = Some ps ->
+    SPISL Gamma (mkhoare (land p (hasvaldash x)) (mutation x e) (land (lexists y ps) (hasval x e)))
+| spi_new (p ps pss: assert) (x y: V) (e: expr):
+    ~In x (evar e) ->
+    ~In y (x :: aoccur p ++ evar e) ->
+    asub p x y = Some ps ->
+    asub_cheap_clear (lexists y ps) x = Some pss ->
+    SPISL Gamma (mkhoare p (new x e) (land pss (hasval x e)))
+| spi_dispose (p ps: assert) (x y: V):
+    ~In y (x :: aoccur p) ->
+    asub_cheap_update p x y = Some ps ->
+    SPISL Gamma (mkhoare (land p (hasvaldash x)) (dispose x) (limp (hasvaldash x) (lexists y ps)))
+| spi_conseq (p pp q qq: assert) (x: program):
+    Gamma (limp pp p) -> SPISL Gamma (mkhoare p x q) -> Gamma (limp q qq) ->
+    SPISL Gamma (mkhoare pp x qq).
+
 End Language.
 

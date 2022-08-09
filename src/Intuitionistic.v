@@ -558,6 +558,214 @@ apply WPISL_soundness; auto.
 apply WPISL_completeness; auto.
 Qed.
 
+(* =============================================== *)
+(* SOUNDNESS AND COMPLETENESS OF                   *)
+(* STRONGEST POSTCONDITION AXIOMATIZATION (SP-ISL) *)
+(* =============================================== *)
+
+Corollary SPISL_soundness_basic (p: assert) (x y: V) (e: expr):
+  ~ In y (x :: aoccur p ++ evar e) ->
+  forall ps, asub p x y = Some ps ->
+  strong_partial_correct (mkhoare p (basic x e) (lexists y (land ps (equals (esub e x y) x)))).
+Admitted.
+
+Corollary SPISL_soundness_lookup (p: assert) (x y: V) (e: expr):
+  ~ In y (x :: aoccur p ++ evar e) ->
+  forall ps, asub p x y = Some ps ->
+  strong_partial_correct (mkhoare (land p (hasvaldash e)) (lookup x e) (lexists y (land ps (hasval (esub e x y) x)))).
+Admitted.
+
+Corollary SPISL_soundness_mutation (p: assert) (x y: V) (e: expr):
+  ~ In y (x :: aoccur p ++ evar e) ->
+  forall ps, asub_cheap_update p x y = Some ps ->
+  strong_partial_correct (mkhoare (land p (hasvaldash x)) (mutation x e) (land (lexists y ps) (hasval x e))).
+Admitted.
+
+Corollary SPISL_soundness_new (p: assert) (x y: V) (e: expr):
+  ~ In x (evar e) ->
+  ~ In y (x :: aoccur p ++ evar e) ->
+  forall ps, asub p x y = Some ps ->
+  forall pss, asub_cheap_clear (lexists y ps) x = Some pss ->
+  strong_partial_correct (mkhoare p (new x e) (land pss (hasval x e))).
+Admitted.
+
+Corollary SPISL_soundness_dispose (p: assert) (x y: V):
+  ~ In y (x :: aoccur p) ->
+  forall ps, asub_cheap_update p x y = Some ps ->
+  strong_partial_correct (mkhoare (land p (hasvaldash x)) (dispose x) (limp (hasvaldash x) (lexists y ps))).
+Admitted.
+
+Theorem SPISL_soundness (Gamma: assert -> Prop) (O: forall p, Gamma p -> validity p):
+  forall pSq, inhabited (SPISL Gamma pSq) -> strong_partial_correct pSq.
+intros. destruct H. induction H.
+- apply SPISL_soundness_basic; assumption.
+- apply SPISL_soundness_lookup; assumption.
+- apply SPISL_soundness_mutation; assumption.
+- eapply SPISL_soundness_new. apply n. apply n0. apply e0. assumption.
+- apply SPISL_soundness_dispose; assumption.
+- apply O in g. apply O in g0.
+  eapply soundness_conseq.
+  apply g. apply g0. assumption.
+Qed.
+
+Corollary SPISL_strongest_basic (p q: assert) (x y: V) (e: expr):
+  strong_partial_correct (mkhoare p (basic x e) q) ->
+  ~ In y (x :: aoccur p ++ evar e ++ aoccur q) ->
+  forall ps, asub p x y = Some ps ->
+  validity (limp (lexists y (land ps (equals (esub e x y) x))) q).
+Admitted.
+
+Corollary SPISL_strongest_lookup (p q: assert) (x y: V) (e: expr):
+  strong_partial_correct (mkhoare p (lookup x e) q) ->
+  ~ In y (x :: aoccur p ++ evar e ++ aoccur q) ->
+  forall ps, asub p x y = Some ps ->
+  validity (limp (lexists y (land ps (hasval (esub e x y) x))) q).
+Admitted.
+
+Corollary SPISL_strongest_mutation (p q: assert) (x y: V) (e: expr):
+  strong_partial_correct (mkhoare p (mutation x e) q) ->
+  ~In y (x :: aoccur p ++ evar e ++ aoccur q) ->
+  forall ps, asub_cheap_update p x y = Some ps ->
+  validity (limp (land (lexists y ps) (hasval x e)) q).
+Admitted.
+
+Corollary SPISL_strongest_new (p q: assert) (x y: V) (e: expr):
+  ~ In x (evar e) ->
+  strong_partial_correct (mkhoare p (new x e) q) ->
+  ~ In y (x :: aoccur p ++ evar e ++ aoccur q) ->
+  forall ps, asub p x y = Some ps ->
+  forall pss, asub_cheap_clear (lexists y ps) x = Some pss ->
+  validity (limp (land pss (hasval x e)) q).
+Admitted.
+
+Corollary SPISL_strongest_dispose (p q: assert) (x y: V):
+  strong_partial_correct (mkhoare p (dispose x) q) ->
+  ~ In y (x :: aoccur p ++ aoccur q) ->
+  forall ps, asub_cheap_update p x y = Some ps ->
+  validity (limp (limp (hasvaldash x) (lexists y ps)) q).
+Admitted.
+
+Theorem SPISL_completeness (Gamma: assert -> Prop) (O: forall p, validity p -> Gamma p):
+  forall pSq, restrict_pre pSq -> strong_partial_correct pSq -> inhabited (SPISL Gamma pSq).
+intros. destruct pSq as (p, S, q); destruct S; destruct a; unfold restrict_pre in H.
+- remember (fresh (v :: aoccur p ++ evar e ++ aoccur q)) as y.
+  pose proof (asub_defined p v y).
+  assert (forall x, In x (evar y) -> ~In x (abound p)). intros.
+    simpl in H2. destruct H2; auto. rewrite <- H2. rewrite Heqy.
+    apply fresh_notInGeneral. intros. right. apply in_or_app. left. apply in_or_app; auto.
+  apply H1 in H2; clear H1; destruct H2.
+  constructor.
+  apply spi_conseq with (p := p) (q := (lexists y (land x (equals (esub e v y) v)))).
+  apply O. intro. intro. rewrite satisfy_limp; tauto.
+  apply spi_basic. rewrite Heqy. apply fresh_notInGeneral. intros.
+    inversion H2. left; auto. apply in_app_or in H3; destruct H3.
+    right. apply in_or_app; auto. right. apply in_or_app.
+    right. apply in_or_app; auto. assumption.
+  apply O. eapply SPISL_strongest_basic. apply H0.
+  rewrite Heqy. apply fresh_notIn. assumption.
+- remember (fresh (v :: aoccur p ++ evar e ++ aoccur q)) as y.
+  pose proof (asub_defined p v y).
+  assert (forall x, In x (evar y) -> ~In x (abound p)). intros.
+    simpl in H2. destruct H2; auto. rewrite <- H2. rewrite Heqy.
+    apply fresh_notInGeneral. intros. right. apply in_or_app. left. apply in_or_app; auto.
+  apply H1 in H2; clear H1; destruct H2.
+  constructor.
+  apply spi_conseq with (p := (land p (hasvaldash e))) (q := (lexists y (land x (hasval (esub e v y) v)))).
+  apply O. intro. intros. rewrite satisfy_limp. intro. unfold strong_partial_correct in H0.
+    rewrite satisfy_land. split; auto. rewrite satisfy_hasvaldash.
+    apply H0 in H3. destruct H3. destruct (dom_dec h' (e s)); auto. exfalso.
+    apply H3. apply step_lookup_fail. rewrite dom_spec in H5. destruct (h' (e s)); auto.
+    exfalso. apply H5. intro. inversion H6.
+  apply spi_lookup. rewrite Heqy. apply fresh_notInGeneral. intros.
+    inversion H2. left; auto. right. apply in_app_or in H3; destruct H3.
+    apply in_or_app; auto. apply in_or_app; right. apply in_or_app; auto.
+    assumption.
+  apply O. eapply SPISL_strongest_lookup. apply H0.
+  rewrite Heqy. apply fresh_notIn. assumption.
+- remember (fresh (v :: aoccur p ++ evar e ++ aoccur q)) as y.
+  pose proof (asub_cheap_update_defined p v y).
+  assert (forall y0 : V, In y0 (v :: evar y) -> ~ In y0 (abound p)). intros.
+    simpl in H2. destruct H2. rewrite <- H2. auto. destruct H2. rewrite <- H2.
+    rewrite Heqy. apply fresh_notInGeneral. intros. right. apply in_or_app. left.
+    apply in_or_app; auto. inversion H2.
+  apply H1 in H2; clear H1; destruct H2.
+  constructor.
+  apply spi_conseq with (p := (land p (hasvaldash v))) (q := land (lexists y x) (hasval v e)).
+  apply O. intro. intro. rewrite satisfy_limp; intro.
+    rewrite satisfy_land. split; auto. rewrite satisfy_hasvaldash.
+    unfold strong_partial_correct in H0. apply H0 in H3. destruct H3.
+    apply dom_spec. intro. apply H3. apply step_mutation_fail. intro.
+    apply dom_spec in H6. simpl in H5. apply H6. auto.
+  apply spi_mutation. rewrite Heqy. apply fresh_notInGeneral. intros.
+    inversion H2. left; auto. right. apply in_app_or in H3; destruct H3.
+    apply in_or_app; auto. apply in_or_app; right. apply in_or_app; auto. assumption.
+  apply O. eapply SPISL_strongest_mutation. apply H0. rewrite Heqy.
+    apply fresh_notIn. assumption.
+- remember (fresh (v :: aoccur p ++ evar e ++ aoccur q)) as y.
+  pose proof (asub_defined p v y).
+  assert (forall x, In x (evar y) -> ~In x (abound p)). intros.
+    simpl in H2. destruct H2; auto. rewrite <- H2. rewrite Heqy.
+    apply fresh_notInGeneral. intros. right. apply in_or_app. left. apply in_or_app; auto.
+  apply H1 in H2; clear H1; destruct H2.
+  pose proof (asub_cheap_clear_defined (lexists y x) v).
+  destruct H.
+  assert (~In v (abound (lexists y x))). simpl. intro.
+    destruct H4. rewrite <- H4 in Heqy.
+    eapply fresh_notIn with (xs := y :: aoccur p ++ evar e ++ aoccur q).
+    left. assumption. eapply (abound_asub _ _ _ H3 _ H1); assumption.
+  apply H2 in H4; clear H2; destruct H4.
+  constructor.
+  apply spi_conseq with (p := p) (q := land x0 (hasval v e)).
+  apply O. intro. intros. rewrite satisfy_limp; tauto.
+  eapply spi_new; [ apply H | | apply H1 | ].
+  rewrite Heqy. apply fresh_notInGeneral. intros. inversion H4.
+    left; auto. right; apply in_or_app. apply in_app_or in H5; destruct H5; auto.
+    right. apply in_or_app; auto. assumption.
+  apply O. eapply SPISL_strongest_new. apply H. apply H0.
+    apply fresh_notIn. rewrite <- Heqy. apply H1.
+    rewrite <- Heqy. assumption.
+- remember (fresh (v :: aoccur p ++ aoccur q)) as y.
+  pose proof (asub_cheap_update_defined p v y).
+  assert (forall y0 : V, In y0 (v :: evar y) -> ~ In y0 (abound p)). intros.
+    simpl in H2. destruct H2. rewrite <- H2. auto. destruct H2. rewrite <- H2.
+    rewrite Heqy. apply fresh_notInGeneral. intros. right. apply in_or_app. left.
+    apply in_or_app; auto. inversion H2.
+  apply H1 in H2; clear H1; destruct H2.
+  constructor.
+  apply spi_conseq with (p := (land p (hasvaldash v))) (q := limp (hasvaldash v) (lexists y x)).
+  apply O. intro. intro. rewrite satisfy_limp; intro.
+    rewrite satisfy_land. split; auto. rewrite satisfy_hasvaldash.
+    unfold strong_partial_correct in H0. apply H0 in H3. destruct H3.
+    apply dom_spec. intro. apply H3. apply step_dispose_fail. intro.
+    apply dom_spec in H6. simpl in H5. apply H6. auto.
+  apply spi_dispose. rewrite Heqy. apply fresh_notInGeneral. intros.
+    inversion H2. left; auto. right. apply in_app_or in H3; destruct H3.
+    apply in_or_app; left. apply in_or_app; auto. apply in_or_app; left.
+    apply in_or_app; auto. assumption.
+  apply O. eapply SPISL_strongest_dispose. apply H0. rewrite Heqy.
+    apply fresh_notIn. assumption.
+Qed.
+
+Corollary SPISL_soundness_completeness:
+  forall pSq, restrict_pre pSq -> inhabited (SPISL validity pSq) <-> strong_partial_correct pSq.
+intros. split.
+apply SPISL_soundness. tauto.
+apply SPISL_completeness. tauto. tauto.
+Qed.
+
+Corollary result:
+  forall pSq, restrict pSq -> inhabited (SPISL validity pSq) <-> inhabited (WPISL validity pSq).
+intros. destruct H. split.
+intro. apply SPISL_soundness_completeness in H1; auto.
+apply WPISL_soundness_completeness; auto.
+intro. apply WPISL_soundness_completeness in H1; auto.
+apply SPISL_soundness_completeness; auto.
+Qed.
+
 End Intuitionistic.
 
+(* To show all the used axioms in our development, we make everything concrete: *)
 
+Module IntuitionisticIHeap := Intuitionistic IHeap.
+Import IntuitionisticIHeap.
+Print Assumptions result.
