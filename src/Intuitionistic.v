@@ -180,6 +180,52 @@ rewrite H6. assumption.
 unfold Extends. exists x. apply Partition_comm. assumption.
 Qed.
 
+Proposition Extends_heap_update (h: heap) (k v: Z):
+  ~dom h k ->
+  Extends h (heap_update h k v).
+intros.
+unfold Extends.
+exists (heap_update heap_empty k v).
+assert (forall k', ~(dom h k' /\ dom (heap_update heap_empty k v) k')). {
+  intro; intro; destruct H0.
+  destruct (Z.eq_dec k k').
+  rewrite <- e in H0. apply H; auto.
+  rewrite heap_update_dom2 in H1; auto.
+  rewrite dom_spec in H1.
+  rewrite heap_empty_spec in H1.
+  apply H1. reflexivity. }
+pose proof (Partition_intro1 _ _ H0); destruct H1.
+assert (forall n, x n = (heap_update h k v) n). {
+  intro. destruct (dom_dec h n).
+  rewrite heap_update_spec2.
+  eapply Partition_spec1. apply H1. auto.
+  intro. rewrite <- H3 in H2. apply H; auto.
+  destruct (dom_dec (heap_update heap_empty k v) n).
+  destruct (Z.eq_dec k n).
+  rewrite e.
+  rewrite heap_update_spec1.
+  erewrite Partition_spec2; [|apply H1|].
+  rewrite e.
+  rewrite heap_update_spec1. reflexivity.
+  rewrite e.
+  apply heap_update_dom1.
+  rewrite heap_update_spec2; auto.
+  rewrite heap_update_dom2 in H3; auto.
+  rewrite dom_spec in H3.
+  rewrite heap_empty_spec in H3.
+  exfalso; apply H3; auto.
+  erewrite Partition_spec3; [|apply H1|auto|auto].
+  destruct (Z.eq_dec k n).
+  rewrite e in H3.
+  exfalso. apply H3. apply heap_update_dom1.
+  rewrite heap_update_spec2; auto.
+  rewrite dom_spec in H2.
+  destruct (h n); auto.
+  exfalso. apply H2. intro. inversion H4. }
+pose proof (heap_ext _ _ H2). rewrite <- H3.
+assumption.
+Qed.
+
 (* ====================================== *)
 (* INTUITIONISTIC SEMANTICS OF ASSERTIONS *)
 (* ====================================== *)
@@ -607,10 +653,12 @@ split.
   assert (n = store_update s x n x). {
     rewrite store_update_lookup_same. reflexivity. }
   rewrite H11 at 1.
-  rewrite <- cheap_update_substitution_lemma.
-  apply H1.
-  rewrite <- H11. (* ERROR! *)
-Admitted.
+  rewrite <- heap_update_collapse with (v := 0%Z).
+  rewrite <- cheap_update_substitution_lemma; [| |apply H0].
+  eapply satisfy_monotonic. apply H1.
+  apply Extends_heap_update. rewrite <- H11. assumption.
+  apply heap_update_dom1.
+Qed.
 
 Corollary WPISL_soundness_dispose (p: assert) (x: V):
   forall ps, asub_cheap_clear p x = Some ps ->
