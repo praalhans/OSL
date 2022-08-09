@@ -1162,7 +1162,7 @@ Inductive WPISL (Gamma: assert -> Prop): hoare -> Set :=
     asub_cheap_clear p x = ps ->
     WPISL Gamma (mkhoare (land (hasvaldash x) ps) (dispose x) p)
 | wpi_conseq (p pp q qq: assert) (x: program):
-    Gamma (limp pp p) -> WPCSL Gamma (mkhoare p x q) -> Gamma (limp q qq) ->
+    Gamma (limp pp p) -> WPISL Gamma (mkhoare p x q) -> Gamma (limp q qq) ->
     WPISL Gamma (mkhoare pp x qq).
 
 End Language.

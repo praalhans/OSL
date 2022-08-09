@@ -442,6 +442,122 @@ Corollary WPISL_soundness_basic (p: assert) (x: V) (e: expr):
     strong_partial_correct (mkhoare ps (basic x e) p).
 Admitted.
 
+Corollary WPISL_soundness_lookup (p: assert) (x y: V) (e: expr):
+  ~ In y (x :: aoccur p ++ evar e) ->
+    forall ps, asub p x y = Some ps ->
+      strong_partial_correct (mkhoare (lexists y (land (hasval e y) ps)) (lookup x e) p).
+Admitted.
+
+Corollary WPISL_soundness_mutation (p: assert) (x: V) (e: expr):
+  forall ps, asub_cheap_update p x e = Some ps ->
+    strong_partial_correct (mkhoare (land (hasvaldash x) ps) (mutation x e) p).
+Admitted.
+
+Corollary WPISL_soundness_new (p: assert) (x: V) (e: expr):
+  ~ In x (evar e) ->
+  forall ps, asub_cheap_update p x e = Some ps ->
+    strong_partial_correct (mkhoare (lforall x (lor (hasvaldash x) ps)) (new x e) p).
+Admitted.
+
+Corollary WPISL_soundness_dispose (p: assert) (x: V):
+  forall ps, asub_cheap_clear p x = Some ps ->
+    strong_partial_correct (mkhoare (land (hasvaldash x) ps) (dispose x) p).
+Admitted.
+
+Theorem WPISL_soundness (Gamma: assert -> Prop) (O: forall p, Gamma p -> validity p):
+  forall pSq, inhabited (WPISL Gamma pSq) -> strong_partial_correct pSq.
+intros. destruct H. induction H.
+- apply WPISL_soundness_basic; assumption.
+- apply WPISL_soundness_lookup; assumption.
+- apply WPISL_soundness_mutation; assumption.
+- apply WPISL_soundness_new; assumption.
+- apply WPISL_soundness_dispose; assumption.
+- apply O in g. apply O in g0.
+  eapply soundness_conseq.
+  apply g. apply g0. assumption.
+Qed.
+
+Corollary WPISL_weakest_basic (q p: assert) (x: V) (e: expr):
+  strong_partial_correct (mkhoare p (basic x e) q) ->
+  forall qs, asub q x e = Some qs ->
+  validity (limp p qs).
+Admitted.
+
+Corollary WPISL_weakest_lookup (q p: assert) (x: V) (e: expr):
+  strong_partial_correct (mkhoare p (lookup x e) q) ->
+  forall y, ~In y (x :: aoccur q ++ evar e) ->
+  forall qs, asub q x y = Some qs ->
+  validity (limp p (lexists y (land (hasval e y) qs))).
+Admitted.
+
+Corollary WPISL_weakest_mutation (q p: assert) (x: V) (e: expr):
+  strong_partial_correct (mkhoare p (mutation x e) q) ->
+  forall qs, asub_cheap_update q x e = Some qs ->
+  validity (limp p (land (hasvaldash x) qs)).
+Admitted.
+
+Corollary WPISL_weakest_allocation (q p: assert) (x: V) (e: expr):
+  strong_partial_correct (mkhoare p (new x e) q) ->
+  ~ In x (evar e) ->
+  forall qs, asub_cheap_update q x e = Some qs ->
+  validity (limp p (lforall x (lor (hasvaldash x) qs))).
+Admitted.
+
+Corollary WPISL_weakest_dispose (q p: assert) (x: V):
+  strong_partial_correct (mkhoare p (dispose x) q) ->
+  forall qs, asub_cheap_clear q x = Some qs ->
+  validity (limp p (land (hasvaldash x) qs)).
+Admitted.
+
+Theorem WPISL_completeness (Gamma: assert -> Prop) (O: forall p, validity p -> Gamma p):
+  forall pSq, restrict_post pSq -> strong_partial_correct pSq -> inhabited (WPISL Gamma pSq).
+intros. destruct pSq as (p, S, q); destruct S; destruct a; unfold restrict_post in H.
+- rewrite asub_defined with (x := v) in H.
+  destruct H. constructor.
+  apply wpi_conseq with (p := x) (q := q).
+  apply O. eapply WPISL_weakest_basic. apply H0. auto.
+  apply wpi_basic; auto.
+  apply O. intro. intro. rewrite satisfy_limp. tauto.
+- remember (fresh (v :: aoccur q ++ evar e)) as y.
+  pose proof (asub_defined q v y).
+  assert (forall x : V, In x (evar y) -> ~ In x (abound q)).
+  intros. simpl in H2. destruct H2. rewrite <- H2. rewrite Heqy.
+  apply fresh_notInGeneral. intros. right. apply in_or_app. left. apply in_or_app. auto. inversion H2.
+  apply H1 in H2; clear H1; destruct H2.
+  constructor.
+  apply wpi_conseq with (p := (lexists y (land (hasval e y) x))) (q := q).
+  apply O. eapply WPISL_weakest_lookup. apply H0.
+  rewrite Heqy. apply fresh_notIn. auto.
+  apply wpi_lookup; auto.
+  rewrite Heqy. apply fresh_notIn.
+  apply O. intro. intro. rewrite satisfy_limp. tauto.
+- rewrite asub_cheap_update_defined in H. destruct H.
+  constructor.
+  apply wpi_conseq with (p := land (hasvaldash v) x) (q := q).
+  apply O. eapply WPISL_weakest_mutation. apply H0. auto.
+  apply wpi_mutation. auto.
+  apply O. intro. intro. rewrite satisfy_limp. tauto.
+- destruct H. rewrite asub_cheap_update_defined in H1. destruct H1.
+  constructor.
+  apply wpi_conseq with (p := lforall v (lor (hasvaldash v) x)) (q := q).
+  apply O. eapply WPISL_weakest_allocation. apply H0. auto. auto.
+  apply wpi_new. auto. auto.
+  apply O. intro. intro. rewrite satisfy_limp. tauto.
+- rewrite asub_cheap_clear_defined in H. destruct H.
+  constructor.
+  apply wpi_conseq with (p := land (hasvaldash v) x) (q := q).
+  apply O. eapply WPISL_weakest_dispose. apply H0. auto.
+  apply wpi_dispose. auto.
+  apply O. intro. intro. rewrite satisfy_limp. tauto.
+Qed.
+
+Corollary WPISL_soundness_completeness:
+  forall pSq, restrict_post pSq -> inhabited (WPISL validity pSq) <-> strong_partial_correct pSq.
+intros. split.
+apply WPISL_soundness; auto.
+apply WPISL_completeness; auto.
+Qed.
+
 End Intuitionistic.
 
 
