@@ -129,6 +129,15 @@ Proposition iff_split_imp (A B C D: Prop):
 intros. split; intros H1 H2.
 all: apply H0; apply H1; apply H; assumption.
 Qed.
+Proposition iff_split_imp_forall1 {T: Type}
+    (A B C D: T -> Prop) (H: T -> Prop):
+  (forall x, (A x <-> C x)) -> (forall x, (B x <-> D x)) ->
+    ((forall x, H x -> A x -> B x) <->
+     (forall x, H x -> C x -> D x)).
+intros; split; intros; apply H2 in H3.
+1,3: apply H1; assumption.
+all: apply H0; assumption.
+Qed.
 Proposition iff_split_and_exists {T: Type}
     (A B C D: T -> Prop) (H: T -> T -> Prop):
   (forall x, (A x <-> C x)) -> (forall y, (B y <-> D y)) ->

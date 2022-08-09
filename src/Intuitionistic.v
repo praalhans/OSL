@@ -380,10 +380,87 @@ Definition strong_partial_correct: hoare -> Prop := fun '(mkhoare p S q) =>
 (* STORE SUBSTITUTION LEMMA *)
 (* ======================== *)
 
+Proposition store_substitution_lemma_p1 (p: assert) (e: expr):
+  (forall (x: V) (h: heap) (s: store) (ps: assert),
+      asub p x e = Some ps -> satisfy h s ps <-> satisfy h (store_update s x (e s)) p) ->
+  forall (x: V) (h: heap) (s : store) (ps: assert),
+    ~In x (avar p) -> asub p x e = Some ps ->
+    satisfy h s ps <-> satisfy h s p.
+intros.
+pose proof (acond h p s (store_update s x (e s))).
+rewrite H2. apply H. assumption.
+intro; intro.
+unfold store_update.
+destruct (Nat.eq_dec x x0).
+exfalso; apply H0. rewrite e0; assumption.
+reflexivity.
+Qed.
+
 Lemma store_substitution_lemma (h: heap) (s: store) (p: assert) (x: V) (e: expr):
   forall ps, asub p x e = Some ps ->
     (satisfy h s ps <-> satisfy h (store_update s x (e s)) p).
-Admitted.
+generalize dependent s; generalize dependent h; generalize dependent x;
+induction p; intros; simpl in H;
+try (inversion H; unfold satisfy; apply iff_refl; fail).
+- apply option_app_elim in H; destruct H; destruct H.
+  apply option_app_elim in H0; destruct H0; destruct H0.
+  inversion H1.
+  simpl; apply iff_split_and.
+  apply IHp1; assumption.
+  apply IHp2; assumption.
+- apply option_app_elim in H; destruct H; destruct H.
+  apply option_app_elim in H0; destruct H0; destruct H0.
+  inversion H1.
+  simpl. apply iff_split_or.
+  apply IHp1; assumption.
+  apply IHp2; assumption.
+- apply option_app_elim in H; destruct H; destruct H.
+  apply option_app_elim in H0; destruct H0; destruct H0.
+  inversion H1.
+  simpl. apply iff_split_imp_forall1; intros.
+  apply IHp1; assumption.
+  apply IHp2; assumption.
+- destruct (in_dec Nat.eq_dec v (evar e)). inversion H.
+  apply option_app_elim in H; destruct H; destruct H.
+  inversion H0; clear H0 H2.
+  simpl.
+  apply iff_split_exists; intro.
+  destruct (Nat.eq_dec x v).
+  rewrite e0.
+  rewrite store_update_collapse.
+  eapply store_substitution_lemma_p1; [apply IHp| |apply H].
+  apply fresh_notIn.
+  rewrite store_update_swap; try assumption.
+  rewrite eval_store_update_notInVar with (e := e) (x := v) (v := x1); try assumption.
+  apply IHp; assumption.
+- destruct (in_dec Nat.eq_dec v (evar e)). inversion H.
+  apply option_app_elim in H; destruct H; destruct H.
+  inversion H0; clear H0 H2.
+  simpl.
+  apply iff_split_forall.
+  destruct (Nat.eq_dec x v); intro.
+  rewrite e0.
+  rewrite store_update_collapse.
+  eapply store_substitution_lemma_p1; [apply IHp| |apply H].
+  apply fresh_notIn.
+  rewrite store_update_swap; try assumption.
+  rewrite eval_store_update_notInVar with (e := e) (x := v) (v := x1); try assumption.
+  apply IHp; assumption.
+- apply option_app_elim in H; destruct H; destruct H.
+  apply option_app_elim in H0; destruct H0; destruct H0.
+  inversion H1.
+  simpl.
+  apply iff_split_and_exists.
+  intro; apply IHp1; assumption.
+  intro; apply IHp2; assumption.
+- apply option_app_elim in H; destruct H; destruct H.
+  apply option_app_elim in H0; destruct H0; destruct H0.
+  inversion H1.
+  simpl.
+  apply iff_split_imp_forall.
+  intro; apply IHp1; assumption.
+  intro; apply IHp2; assumption.
+Qed.
 
 (* ========================================== *)
 (* CONDITIONAL HEAP UPDATE SUBSTITUTION LEMMA *)
@@ -440,23 +517,99 @@ Qed.
 Corollary WPISL_soundness_basic (p: assert) (x: V) (e: expr):
   forall ps, asub p x e = Some ps ->
     strong_partial_correct (mkhoare ps (basic x e) p).
-Admitted.
+intros. intro. intros. split.
+intro. inversion H1. intros. inversion H1. rewrite <- H7.
+rewrite <- store_substitution_lemma. apply H0. assumption.
+Qed.
 
 Corollary WPISL_soundness_lookup (p: assert) (x y: V) (e: expr):
   ~ In y (x :: aoccur p ++ evar e) ->
     forall ps, asub p x y = Some ps ->
       strong_partial_correct (mkhoare (lexists y (land (hasval e y) ps)) (lookup x e) p).
-Admitted.
+intros. intro. intros.
+split.
+- intro. inversion H2.
+  rewrite satisfy_lexists in H1. destruct H1 as (z & H1).
+  rewrite satisfy_land in H1; destruct H1.
+  rewrite satisfy_hasval in H1.
+  simpl in H1. rewrite store_update_lookup_same in H1.
+  rewrite econd with (t := s) in H1. rewrite H1 in H4. inversion H4.
+  intro. intro. destruct (Nat.eq_dec x1 y).
+  exfalso. rewrite e1 in H9. apply H. right. apply in_or_app. auto.
+  rewrite store_update_lookup_diff; auto.
+- intros. inversion H2. rewrite <- H8.
+  rewrite satisfy_lexists in H1.
+  destruct H1 as (z & H1).
+  rewrite satisfy_land in H1; destruct H1.
+  rewrite store_substitution_lemma in H10; [|apply H0].
+  simpl in H10. rewrite store_update_lookup_same in H10.
+  rewrite satisfy_hasval in H1. simpl in H1.
+  rewrite store_update_lookup_same in H1.
+  rewrite <- H8 in H4.
+  assert (e s = e (store_update s y z)). {
+    apply econd. intro. intro. destruct (Nat.eq_dec x1 y). rewrite e1.
+    exfalso. rewrite e1 in H11. apply H. right. apply in_or_app. auto.
+    rewrite store_update_lookup_diff; auto. }
+  rewrite <- H11 in H1.
+  rewrite H1 in H4. inversion H4. rewrite H13 in H10.
+  assert (x <> y). {
+    intro. rewrite H12 in H. apply H. left. reflexivity. }
+  rewrite store_update_swap in H10; auto.
+  rewrite acond. apply H10.
+  intro. intro.
+  destruct (Nat.eq_dec x x1). rewrite e1.
+  rewrite store_update_lookup_same.
+  rewrite store_update_lookup_diff.
+  rewrite store_update_lookup_same; auto.
+  intro. apply H12. rewrite e1. rewrite H15. reflexivity.
+  rewrite store_update_lookup_diff; auto.
+  rewrite store_update_lookup_diff.
+  rewrite store_update_lookup_diff; auto.
+  intro. rewrite <- H15 in H14. apply H. right.
+  apply in_or_app. left. apply in_or_app. auto.
+Qed.
 
 Corollary WPISL_soundness_mutation (p: assert) (x: V) (e: expr):
   forall ps, asub_cheap_update p x e = Some ps ->
     strong_partial_correct (mkhoare (land (hasvaldash x) ps) (mutation x e) p).
-Admitted.
+intros. intro. intros.
+rewrite satisfy_land in H0; destruct H0.
+rewrite satisfy_hasvaldash in H0.
+split.
+- intro.
+  inversion H2. apply H4. assumption.
+- intros. inversion H2.
+  rewrite <- H9.
+  rewrite <- cheap_update_substitution_lemma.
+  apply H1. assumption. assumption.
+Qed.
 
 Corollary WPISL_soundness_new (p: assert) (x: V) (e: expr):
   ~ In x (evar e) ->
   forall ps, asub_cheap_update p x e = Some ps ->
     strong_partial_correct (mkhoare (lforall x (lor (hasvaldash x) ps)) (new x e) p).
+intros. intro. intros.
+rewrite satisfy_lforall in H1.
+split.
+- intro. inversion H2.
+- intros. inversion H2.
+  specialize H1 with n.
+  rewrite satisfy_lor in H1.
+  destruct H1.
+  rewrite satisfy_hasvaldash in H1.
+  simpl in H1. rewrite store_update_lookup_same in H1.
+  exfalso; apply H4; assumption.
+  assert (e s = e (store_update s x n)). {
+    apply econd. intro. intros. destruct (Nat.eq_dec x1 x).
+    rewrite e1 in H10. exfalso. apply H. auto.
+    rewrite store_update_lookup_diff; auto. }
+  rewrite H10.
+  assert (n = store_update s x n x). {
+    rewrite store_update_lookup_same. reflexivity. }
+  rewrite H11 at 1.
+  rewrite <- cheap_update_substitution_lemma.
+  apply H1.
+  rewrite <- H11. (* ERROR! *)
 Admitted.
 
 Corollary WPISL_soundness_dispose (p: assert) (x: V):
