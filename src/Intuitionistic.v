@@ -398,6 +398,68 @@ simpl. intros. eapply H.
 apply H0. apply H1.
 Qed.
 
+Proposition satisfy_retract_update (h: heap) (s: store) (k: Z) (q: assert) (x: V) (e: expr):
+  forall qs, asub_cheap_update q x e = Some qs ->
+  ~dom h k -> (forall v, satisfy (heap_update h k v) (store_update s x k) qs) ->
+  satisfy h (store_update s x k) qs.
+generalize dependent s.
+generalize dependent h.
+induction q; intros.
+- simpl in H; inversion H.
+  rewrite <- H3 in H1; simpl in H1; simpl.
+  auto.
+- simpl in H; inversion H.
+  rewrite <- H3 in H1; clear H3.
+  specialize H1 with 0%Z. (* Dummy *)
+  rewrite satisfy_lor in H1; rewrite satisfy_lor; destruct H1.
+  + rewrite satisfy_land in H1; destruct H1.
+    rewrite satisfy_equals in H1, H2.
+    left.
+    rewrite satisfy_land; split; rewrite satisfy_equals; auto.
+  + rewrite satisfy_land in H1; destruct H1.
+    apply satisfy_lnot_elim in H1.
+    rewrite satisfy_equals in H1; simpl in H1; rewrite store_update_lookup_same in H1.
+    right.
+    rewrite satisfy_land; split.
+    rewrite satisfy_lnot; intros.
+    intro.
+    rewrite satisfy_equals in H4; simpl in H4; rewrite store_update_lookup_same in H4.
+    apply H1; auto.
+    rewrite satisfy_hasval in *.
+    rewrite heap_update_spec2 in H2; auto.
+- simpl in H.
+  apply option_app_elim in H; destruct H; destruct H.
+  apply option_app_elim in H2; destruct H2; destruct H2.
+  inversion H3.
+  rewrite <- H5 in H1.
+  rewrite satisfy_land; split.
+  apply IHq1; auto; intro.
+  specialize H1 with v.
+  rewrite satisfy_land in H1; destruct H1; auto.
+  apply IHq2; auto; intro.
+  specialize H1 with v.
+  rewrite satisfy_land in H1; destruct H1; auto.
+- simpl in H.
+  apply option_app_elim in H; destruct H; destruct H.
+  apply option_app_elim in H2; destruct H2; destruct H2.
+  inversion H3.
+  rewrite <- H5 in H1.
+  rewrite satisfy_lor.
+  pose proof (IHq1 h s x0 H H0).
+  pose proof (IHq2 h s x1 H2 H0).
+  (* STUCK? *)
+- simpl in H.
+  apply option_app_elim in H; destruct H; destruct H.
+  apply option_app_elim in H2; destruct H2; destruct H2.
+  inversion H3.
+  rewrite <- H5 in H1.
+  rewrite satisfy_limp in H1.
+  rewrite satisfy_limp; intros.
+  destruct (dom_dec h' k).
+  
+  apply (IHq2 v); auto.
+Abort.
+
 (* =================================== *)
 (* COINCIDENCE CONDITION ON ASSERTIONS *)
 (* =================================== *)
@@ -663,7 +725,17 @@ Qed.
 Corollary WPISL_soundness_dispose (p: assert) (x: V):
   forall ps, asub_cheap_clear p x = Some ps ->
     strong_partial_correct (mkhoare (land (hasvaldash x) ps) (dispose x) p).
-Admitted.
+intros. intro. intros.
+rewrite satisfy_land in H0; destruct H0.
+rewrite satisfy_hasvaldash in H0.
+split.
+- intro. inversion H2. apply H5. assumption.
+- intros. inversion H2.
+  rewrite <- H8.
+  rewrite <- cheap_clear_substitution_lemma. apply H1.
+  rewrite H8. assumption.
+  assumption.
+Qed.
 
 Theorem WPISL_soundness (Gamma: assert -> Prop) (O: forall p, Gamma p -> validity p):
   forall pSq, inhabited (WPISL Gamma pSq) -> strong_partial_correct pSq.
@@ -682,27 +754,106 @@ Corollary WPISL_weakest_basic (q p: assert) (x: V) (e: expr):
   strong_partial_correct (mkhoare p (basic x e) q) ->
   forall qs, asub q x e = Some qs ->
   validity (limp p qs).
-Admitted.
+intros. intro. intros.
+rewrite satisfy_limp. intros.
+unfold strong_partial_correct in H.
+specialize H with h' s.
+apply H in H2; clear H. destruct H2.
+specialize H2 with h' (store_update s x (e s)).
+pose proof (H2 (step_basic x e h' s)); clear H2.
+rewrite store_substitution_lemma. apply H3. assumption.
+Qed.
 
 Corollary WPISL_weakest_lookup (q p: assert) (x: V) (e: expr):
   strong_partial_correct (mkhoare p (lookup x e) q) ->
   forall y, ~In y (x :: aoccur q ++ evar e) ->
   forall qs, asub q x y = Some qs ->
   validity (limp p (lexists y (land (hasval e y) qs))).
-Admitted.
+intros. intro. intros.
+rewrite satisfy_limp; intros.
+unfold strong_partial_correct in H; specialize H with h' s.
+apply H in H3; clear H; destruct H3.
+remember (h' (e s)). destruct o.
+rewrite satisfy_lexists. exists z.
+rewrite satisfy_land. split.
+rewrite satisfy_hasval.
+assert (e s = e (store_update s y z)). {
+  apply econd. intro. intro. destruct (Nat.eq_dec x0 y).
+  rewrite e0 in H4. exfalso. apply H0. right. apply in_or_app. auto.
+  rewrite store_update_lookup_diff; auto. }
+rewrite <- H4. simpl. rewrite store_update_lookup_same. auto.
+specialize H3 with h' (store_update s x z).
+symmetry in Heqo.
+pose proof (H3 (step_lookup x e h' s z Heqo)); clear H3.
+rewrite (store_substitution_lemma h' (store_update s y z) q x y qs H1).
+simpl. rewrite store_update_lookup_same.
+rewrite store_update_swap.
+rewrite acond. apply H4.
+intro. intro. destruct (Nat.eq_dec x0 y).
+rewrite e0 in H3. exfalso. apply H0. right. apply in_or_app. left. apply in_or_app; auto.
+rewrite store_update_lookup_diff; auto.
+intro. rewrite H3 in H0. apply H0. left; auto.
+exfalso. apply H. apply step_lookup_fail. auto.
+Qed.
 
 Corollary WPISL_weakest_mutation (q p: assert) (x: V) (e: expr):
   strong_partial_correct (mkhoare p (mutation x e) q) ->
   forall qs, asub_cheap_update q x e = Some qs ->
   validity (limp p (land (hasvaldash x) qs)).
-Admitted.
+intros. intro. intros.
+rewrite satisfy_limp; intros.
+unfold strong_partial_correct in H.
+specialize H with h' s.
+apply H in H2; clear H; destruct H2.
+assert (dom h' (s x)).
+destruct (dom_dec h' (s x)); auto.
+exfalso. apply H. apply step_mutation_fail; auto.
+rewrite satisfy_land; split.
+rewrite satisfy_hasvaldash; auto.
+rewrite cheap_update_substitution_lemma; [|apply H3|apply H0].
+apply H2. apply step_mutation; auto.
+Qed.
 
 Corollary WPISL_weakest_allocation (q p: assert) (x: V) (e: expr):
   strong_partial_correct (mkhoare p (new x e) q) ->
   ~ In x (evar e) ->
   forall qs, asub_cheap_update q x e = Some qs ->
   validity (limp p (lforall x (lor (hasvaldash x) qs))).
-Admitted.
+intros. intro. intros.
+rewrite satisfy_limp; intros.
+rewrite satisfy_lforall; intro.
+rewrite satisfy_lor.
+destruct (dom_dec h' (store_update s x v x)); auto.
+left. rewrite satisfy_hasvaldash; auto.
+right.
+rewrite store_update_lookup_same in H4.
+unfold strong_partial_correct in H.
+specialize H with h' s.
+apply H in H3; clear H; destruct H3.
+specialize H3 with (heap_update h' v (e s)) (store_update s x v).
+pose proof (H3 (step_new _ _ _ _ _ H4)); clear H3.
+assert (e s = e (store_update s x v)). {
+  apply econd. intro. intros. destruct (Nat.eq_dec x0 x).
+  rewrite e0 in H3. exfalso. apply H0. auto.
+  rewrite store_update_lookup_diff; auto. }
+assert (v = store_update s x v x). {
+  rewrite store_update_lookup_same. reflexivity. }
+rewrite H6 in H5 at 1.
+rewrite H3 in H5.
+assert (forall z, satisfy (heap_update h' v z) (store_update s x v) qs). {
+  intro.
+  rewrite <- heap_update_collapse with (v := z) in H5.
+  rewrite <- cheap_update_substitution_lemma in H5; [| |apply H1].
+  rewrite store_update_lookup_same in H5.
+  assumption. apply heap_update_dom1. }
+assumption.
+rewrite store_update_lookup_same.
+assert (e s = e (store_update s x v)).
+apply econd. intro. intro. destruct (Nat.eq_dec x0 x).
+exfalso. apply H0. rewrite e0 in H2. auto.
+rewrite store_update_lookup_diff; auto.
+rewrite <- H2. assumption.
+Qed.
 
 Corollary WPISL_weakest_dispose (q p: assert) (x: V):
   strong_partial_correct (mkhoare p (dispose x) q) ->
