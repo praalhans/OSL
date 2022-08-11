@@ -1157,7 +1157,7 @@ Inductive WPISL (Gamma: assert -> Prop): hoare -> Set :=
 | wpi_new (p ps: assert) (x: V) (e: expr):
     ~In x (evar e) ->
     asub_cheap_update p x e = ps ->
-    WPISL Gamma (mkhoare (lforall x (lor (hasvaldash x) ps)) (new x e) p)
+    WPISL Gamma (mkhoare (lforall x (lor (hasvaldash x) (limp (hasvaldash x) ps))) (new x e) p)
 | wpi_dispose (p ps: assert) (x: V):
     asub_cheap_clear p x = ps ->
     WPISL Gamma (mkhoare (land (hasvaldash x) ps) (dispose x) p)
