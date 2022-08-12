@@ -954,9 +954,94 @@ Fixpoint asub_cheap_update (p: assert) (x: V) (e: expr): option assert :=
         (simp p qs))
   end.
 
+Proposition asub_cheap_update_defined_step1 (C: assert -> assert -> assert) (p1 p2: assert) (x: V) (e: expr)
+    (IHp1: (forall y : V, In y (x :: evar e) -> ~ In y (abound p1)) <-> (exists q : assert, asub_cheap_update p1 x e = Some q))
+    (IHp2: (forall y : V, In y (x :: evar e) -> ~ In y (abound p2)) <-> (exists q : assert, asub_cheap_update p2 x e = Some q)):
+  (forall y : V, In y (x :: evar e) -> ~ In y (abound p1 ++ abound p2)) <->
+  (exists q : assert, option_app (asub_cheap_update p1 x e) (fun ps : assert => option_app (asub_cheap_update p2 x e) (fun qs : assert => C ps qs)) = Some q).
+split; intros.
+- apply In_app_split in H; destruct H.
+  apply IHp1 in H; destruct H.
+  apply IHp2 in H0; destruct H0.
+  exists (C x0 x1); rewrite H; rewrite H0; reflexivity.
+- destruct H.
+  apply option_app_elim in H; destruct H; destruct H.
+  assert (exists q, asub_cheap_update p1 x e = Some q) by (exists x1; assumption).
+  apply option_app_elim in H1; destruct H1; destruct H1.
+  assert (exists q, asub_cheap_update p2 x e = Some q) by (exists x2; assumption).
+  apply not_In_split; split.
+  apply <- IHp1; assumption.
+  apply <- IHp2; assumption.
+Qed.
+
 Proposition asub_cheap_update_defined (p: assert) (x: V) (e: expr):
   (forall y, In y (x :: evar e) -> ~In y (abound p)) <-> exists q, asub_cheap_update p x e = Some q.
-Admitted.
+induction p;
+try (apply asub_cheap_update_defined_step1; assumption; fail).
+- simpl; split; intros.
+  eexists; reflexivity. tauto.
+- simpl; split; intros.
+  eexists; reflexivity. tauto.
+- unfold asub_cheap_update. fold asub_cheap_update.
+  destruct (in_dec Nat.eq_dec v (x :: evar e)).
+  + split; intro. exfalso. eapply H. apply i.
+    simpl. left; reflexivity.
+    destruct H. inversion H.
+  + split; intro.
+    assert (forall y : V, In y (x :: evar e) -> ~ In y (abound p)).
+    intros. intro. eapply H. apply H0. simpl. right; assumption.
+    apply IHp in H0. destruct H0.
+    exists (lexists v x0). rewrite H0. reflexivity.
+    destruct H.
+    apply option_app_elim in H; destruct H; destruct H.
+    assert (exists q : assert, asub_cheap_update p x e = Some q) by
+      (exists x1; assumption).
+    intros.
+    eapply IHp in H1; [|apply H2].
+    intro. simpl in H3. destruct H3.
+    apply n. rewrite H3. assumption.
+    apply H1. assumption.
+- unfold asub_cheap_update. fold asub_cheap_update.
+  destruct (in_dec Nat.eq_dec v (x :: evar e)).
+  + split; intro. exfalso. eapply H. apply i.
+    simpl. left; reflexivity.
+    destruct H. inversion H.
+  + split; intro.
+    assert (forall y : V, In y (x :: evar e) -> ~ In y (abound p)).
+    intros. intro. eapply H. apply H0. simpl. right; assumption.
+    apply IHp in H0. destruct H0.
+    exists (lforall v x0). rewrite H0. reflexivity.
+    destruct H.
+    apply option_app_elim in H; destruct H; destruct H.
+    assert (exists q : assert, asub_cheap_update p x e = Some q) by
+      (exists x1; assumption).
+    intros.
+    eapply IHp in H1; [|apply H2].
+    intro. simpl in H3. destruct H3.
+    apply n. rewrite H3. assumption.
+    apply H1. assumption.
+- split; intros.
+  + unfold abound in H; fold abound in H.
+    apply In_app_split in H. destruct H.
+    apply IHp2 in H0; destruct H0.
+    exists (limp (hasvaldash x) (simp p1 x0)).
+    unfold asub_cheap_update. fold asub_cheap_update. rewrite H0.
+    destruct (sublist_part_dec Nat.eq_dec (x :: evar e) (abound p1)).
+    destruct e0 as (x1 & H1 & H2).
+    exfalso; eapply H. apply H1. apply H2.
+    reflexivity.
+  + destruct H.
+    unfold asub_cheap_update in H; fold asub_cheap_update in H.
+    destruct (sublist_part_dec Nat.eq_dec (x :: evar e) (abound p1)).
+    inversion H.
+    apply option_app_elim in H; destruct H; destruct H.
+    assert (exists q : assert, asub_cheap_update p2 x e = Some q) by
+      (exists x1; assumption).
+    rewrite <- IHp2 in H2.
+    simpl. intro. apply in_app_or in H3; destruct H3.
+    eapply n. apply H0. apply H3.
+    eapply H2. apply H0. apply H3.
+Qed.
 
 (* =================================== *)
 (* CONDITIONAL HEAP CLEAR SUBSTITUTION *)
@@ -986,9 +1071,119 @@ Fixpoint asub_cheap_clear (p: assert) (x: V): option assert :=
             (land (simp p qs) (lforall y (simp pss qss))))))
   end.
 
+Proposition asub_cheap_clear_defined_step1 (C: assert -> assert -> assert) (p1 p2: assert) (x: V)
+    (IHp1: ~ In x (abound p1) <-> (exists q : assert, asub_cheap_clear p1 x = Some q))
+    (IHp2: ~ In x (abound p2) <-> (exists q : assert, asub_cheap_clear p2 x = Some q)):
+  ~ In x (abound p1 ++ abound p2) <-> (exists q : assert, option_app (asub_cheap_clear p1 x)
+    (fun ps : assert => option_app (asub_cheap_clear p2 x) (fun qs : assert => C ps qs)) = Some q).
+split; intros.
+- assert (~In x (abound p1)) by
+    (intro; apply H; apply in_or_app; auto).
+  assert (~In x (abound p2)) by
+    (intro; apply H; apply in_or_app; auto).
+  rewrite IHp1 in H0; rewrite IHp2 in H1.
+  destruct H0; destruct H1.
+  exists (C x0 x1).
+  rewrite H0; rewrite H1.
+  reflexivity.
+- destruct H.
+  apply option_app_elim in H; destruct H; destruct H.
+  apply option_app_elim in H0; destruct H0; destruct H0.
+  intro. apply in_app_or in H2. destruct H2.
+  apply <- IHp1; auto. exists x1; auto.
+  apply <- IHp2; auto. exists x2; auto.
+Qed.
+
+Proposition asub_cheap_clear_defined_step2 (Q: V -> assert -> assert) (p: assert) (x v: V)
+    (IHp: ~ In x (abound p) <-> (exists q : assert, asub_cheap_clear p x = Some q)):
+  ~ (v = x \/ In x (abound p)) <->
+  (exists q : assert, (if Nat.eq_dec v x then None else option_app (asub_cheap_clear p x) (fun ps : assert => Q v ps)) = Some q).
+split; intro.
+- destruct (Nat.eq_dec v x).
+  exfalso; apply H; auto.
+  assert (~In x (abound p)) by
+    (intro; apply H; auto).
+  rewrite IHp in H0; destruct H0.
+  exists (Q v x0); rewrite H0; reflexivity.
+- destruct (Nat.eq_dec v x); destruct H.
+  inversion H.
+  apply option_app_elim in H; destruct H; destruct H.
+  intro; destruct H1.
+  apply n; auto.
+  apply <- IHp.
+  exists x1; auto.
+  auto.
+Qed.
+
 Proposition asub_cheap_clear_defined (p: assert) (x: V):
   ~In x (abound p) <-> exists q, asub_cheap_clear p x = Some q.
-Admitted.
+induction p;
+try (apply asub_cheap_clear_defined_step1; assumption; fail);
+try (apply asub_cheap_clear_defined_step2; assumption; fail).
+- simpl; split; intros.
+  eexists; reflexivity. tauto.
+- simpl; split; intros.
+  eexists; reflexivity. tauto.
+- simpl. split; intros.
+  + assert (~In x (abound p2)) by
+    (intro; apply H; apply in_or_app; auto).
+    rewrite IHp2 in H0. destruct H0.
+    exists (sand p1 (land x0 (hasvaldash x))).
+    rewrite H0. simpl.
+    destruct (in_dec Nat.eq_dec x (abound p1)).
+    exfalso. apply H. apply in_or_app; auto.
+    reflexivity.
+  + destruct H.
+    destruct (in_dec Nat.eq_dec x (abound p1)).
+    inversion H.
+    intro. apply in_app_or in H0. destruct H0.
+    apply n; auto.
+    apply option_app_elim in H; destruct H; destruct H.
+    assert (exists q, asub_cheap_clear p2 x = Some q).
+    exists x1; auto.
+    apply IHp2 in H2.
+    apply H2; auto.
+- simpl. split; intros.
+  + assert (~In x (abound p2)) by
+    (intro; apply H; apply in_or_app; auto).
+    rewrite IHp2 in H0. destruct H0.
+    remember (fresh (x :: aoccur p1 ++ aoccur p2)).
+    pose proof (asub_cheap_update_defined p1 x v).
+    assert (forall y : V, In y (x :: evar v) -> ~ In y (abound p1)).
+    { intros. inversion H2. rewrite <- H3.
+      intro. apply H. apply in_or_app; auto.
+      simpl in H3. destruct H3; auto.
+      rewrite <- H3. rewrite Heqv.
+      unfold aoccur.
+      apply fresh_notInGeneral.
+        intros. right. apply in_or_app. left.
+        apply in_or_app. left. assumption. }
+    apply H1 in H2; clear H1; destruct H2.
+    pose proof (asub_cheap_update_defined p2 x v).
+    assert (forall y : V, In y (x :: evar v) -> ~ In y (abound p2)).
+    { intros. inversion H3. rewrite <- H4.
+      intro. apply H. apply in_or_app; auto.
+      simpl in H4. destruct H4; auto.
+      rewrite <- H4. rewrite Heqv.
+      unfold aoccur.
+      apply fresh_notInGeneral.
+        intros. right. apply in_or_app. right.
+        apply in_or_app. left. assumption. }
+    apply H2 in H3; clear H2; destruct H3.
+    exists (land (simp p1 x0) (lforall v (simp x1 x2))).
+    rewrite H0. simpl. rewrite H1. simpl. rewrite H2. simpl. reflexivity.
+  + destruct H.
+    apply option_app_elim in H; destruct H; destruct H.
+    apply option_app_elim in H0; destruct H0; destruct H0.
+    apply option_app_elim in H1; destruct H1; destruct H1.
+    assert (~ In x (abound p1)).
+      pose proof (asub_cheap_update_defined p1 x (fresh (x :: aoccur p1 ++ aoccur p2))).
+      apply <- H3. exists x2; auto. left; auto.
+    assert (~ In x (abound p2)).
+      apply <- IHp2. exists x1; auto.
+    intro. apply in_app_or in H5. destruct H5.
+    apply H3; auto. apply H4; auto.
+Qed.
 
 (* =============================== *)
 (* BASIC INSTRUCTIONS AND PROGRAMS *)
