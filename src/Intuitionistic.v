@@ -447,7 +447,41 @@ Qed.
 Proposition acond (h: heap) (p: assert):
   forall (s t: store), eq_restr s t (avar p) ->
     (satisfy h s p <-> satisfy h t p).
-Admitted.
+generalize dependent h; induction p; intros; try tauto; simpl in *.
+erewrite (gcond g); [|apply H]; apply iff_refl.
+1,2,3,4: apply eq_restr_split in H; destruct H as (H0 & H1).
+pose proof (econd e s t) as G; rewrite G; try tauto;
+pose proof (econd e0 s t) as I; rewrite I; tauto.
+- specialize IHp1 with h s t; specialize IHp2 with h s t; tauto.
+- specialize IHp1 with h s t; specialize IHp2 with h s t; tauto.
+- apply iff_split_imp_forall1; intros.
+  specialize IHp1 with x s t; tauto.
+  specialize IHp2 with x s t; tauto.
+- apply iff_split_exists; intros.
+  apply IHp. intro. intros.
+  destruct (Nat.eq_dec v x0).
+  rewrite e.
+  repeat rewrite store_update_lookup_same. reflexivity.
+  repeat rewrite store_update_lookup_diff; auto.
+  apply H.
+  apply In_remove; auto.
+- apply iff_split_forall; intros.
+  apply IHp. intro. intros.
+  destruct (Nat.eq_dec v x0).
+  rewrite e.
+  repeat rewrite store_update_lookup_same. reflexivity.
+  repeat rewrite store_update_lookup_diff; auto.
+  apply H.
+  apply In_remove; auto.
+- apply iff_split_and_exists; intros.
+  1: apply IHp1.
+  2: apply IHp2.
+  all: intro; intro; apply H; apply in_or_app; auto.
+- apply iff_split_imp_forall; intros.
+  1: apply IHp1.
+  2: apply IHp2.
+  all: intro; intro; apply H; apply in_or_app; auto.
+Qed.
 
 (* ======== *)
 (* VALIDITY *)
