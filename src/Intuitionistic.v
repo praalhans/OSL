@@ -588,11 +588,178 @@ Qed.
 (* CONDITIONAL HEAP UPDATE SUBSTITUTION LEMMA *)
 (* ========================================== *)
 
+Proposition cheap_update_substitution_lemma_p1 (h: heap) (s: store) (x: V) (e e0 e1: expr):
+  satisfy h s (lor (land (equals x e0) (equals e e1)) (land (lnot (equals x e0)) (hasval e0 e1))) <->
+  (s x = e0 s -> e s = e1 s) /\ (s x <> e0 s -> h (e0 s) = e1 s).
+split; intro.
+- rewrite satisfy_lor in H; destruct H.
+  + rewrite satisfy_land in H; destruct H.
+    rewrite satisfy_equals in H.
+    rewrite satisfy_equals in H0.
+    split; intro.
+    * destruct (Z.eq_dec (e s) (e1 s)).
+      assumption.
+      exfalso. apply n; auto.
+    * simpl in H.
+      exfalso. apply H1; auto.
+  + rewrite satisfy_land in H; destruct H.
+    rewrite satisfy_hasval in H0.
+    rewrite satisfy_lnot in H.
+    specialize H with h.
+    pose proof (H (Extends_refl h)); clear H.
+    rewrite satisfy_equals in H1.
+    split; intro.
+    * exfalso. apply H1; simpl; auto.
+    * apply H0.
+- destruct H.
+  rewrite satisfy_lor.
+  destruct (Z.eq_dec (s x) (e0 s)).
+  + left.
+    rewrite satisfy_land. split; rewrite satisfy_equals.
+    assumption. apply H; auto.
+  + right.
+    rewrite satisfy_land. split.
+    rewrite satisfy_lnot; intros. rewrite satisfy_equals. assumption.
+    rewrite satisfy_hasval. apply H0. assumption.
+Qed.
+
+Proposition cheap_update_substitution_lemma_p2 (h: heap) (s: store) (x: V) (e e0 e1: expr):
+  (s x = e0 s -> e s = e1 s) /\ (s x <> e0 s -> h (e0 s) = e1 s) <->
+  dom (heap_update h (s x) (e s)) (e0 s) /\ (heap_update h (s x) (e s)) (e0 s) = e1 s.
+split; intro.
+- split. apply dom_spec.
+  destruct (Z.eq_dec (s x) (e0 s)).
+  rewrite e2.
+  rewrite heap_update_spec1. intro. inversion H0.
+  rewrite heap_update_spec2. intro. destruct H. rewrite H1 in H0. inversion H0.
+    assumption. assumption.
+  destruct (Z.eq_dec (s x) (e0 s)).
+  rewrite e2.
+  rewrite heap_update_spec1. destruct H. rewrite H. reflexivity. assumption.
+  rewrite heap_update_spec2. destruct H. apply H0. assumption. assumption.
+- destruct H.
+  split; intro.
+  rewrite H1 in H0. rewrite heap_update_spec1 in H0. inversion H0. reflexivity.
+  rewrite heap_update_spec2 in H0; assumption.
+Qed.
+
 Lemma cheap_update_substitution_lemma (h: heap) (s: store) (p: assert) (x: V) (e: expr):
   dom h (s x) ->
   forall ps, asub_cheap_update p x e = Some ps ->
     (satisfy h s ps <-> satisfy (heap_update h (s x) (e s)) s p).
-Admitted.
+generalize dependent s; generalize dependent h;
+induction p; intros.
+- inversion H0; unfold satisfy; apply iff_refl.
+- inversion H0.
+  rewrite cheap_update_substitution_lemma_p1.
+  rewrite cheap_update_substitution_lemma_p2.
+  apply iff_refl.
+- apply option_app_elim in H0; destruct H0; destruct H0.
+  apply option_app_elim in H1; destruct H1; destruct H1.
+  inversion H2.
+  simpl; apply iff_split_and.
+  apply IHp1; assumption.
+  apply IHp2; assumption.
+- apply option_app_elim in H0; destruct H0; destruct H0.
+  apply option_app_elim in H1; destruct H1; destruct H1.
+  inversion H2.
+  simpl; apply iff_split_or.
+  apply IHp1; assumption.
+  apply IHp2; assumption.
+- apply option_app_elim in H0; destruct H0; destruct H0.
+  apply option_app_elim in H1; destruct H1; destruct H1.
+  inversion H2.
+  simpl.
+  
+- unfold asub_heap_update in H; fold asub_heap_update in H.
+  destruct (in_dec Nat.eq_dec v (x :: evar e)).
+  inversion H.
+  apply option_app_elim in H; destruct H; destruct H.
+  inversion H0; clear H0.
+  simpl.
+  apply iff_split_not_forall_not; intro.
+  specialize IHp with h (store_update s v x1) x0.
+  apply IHp in H. rewrite H.
+  pose proof (heap_update_substitution_lemma_p3 s x v e x1 n).
+  destruct H0. rewrite H0. rewrite H1.
+  apply iff_refl.
+- unfold asub_heap_update in H; fold asub_heap_update in H.
+  destruct (in_dec Nat.eq_dec v (x :: evar e)).
+  inversion H.
+  apply option_app_elim in H; destruct H; destruct H.
+  inversion H0; clear H0.
+  simpl.
+  apply iff_split_forall; intro.
+  specialize IHp with h (store_update s v x1) x0.
+  apply IHp in H. rewrite H.
+  pose proof (heap_update_substitution_lemma_p3 s x v e x1 n).
+  destruct H0. rewrite H0. rewrite H1.
+  apply iff_refl.
+- unfold asub_heap_update in H; fold asub_heap_update in H.
+  apply option_app_elim in H; destruct H; destruct H.
+  apply option_app_elim in H0; destruct H0; destruct H0.
+  inversion H1; clear H1.
+  split; intro.
+  + eapply satisfy_lor_elim; [|intro|intro]. apply H1.
+    intro. apply H2; fold satisfy. intros.
+    intro. destruct H5. destruct H6. destruct H7.
+    specialize H4 with (heap_update h1 (s x) (e s)) h2.
+    apply H4; clear H4. split.
+    apply satisfy_lnot_hasvaldash in H8.
+    apply heap_update_substitution_lemma_p4; assumption.
+    split.
+    rewrite <- IHp1. apply H6. assumption. assumption.
+    (* other direction is similar *)
+    intro. apply H2; fold satisfy. intros.
+    intro. destruct H5. destruct H6. destruct H6.
+    specialize H4 with h1 (heap_update h2 (s x) (e s)).
+    apply H4; clear H4. split.
+    apply satisfy_lnot_hasvaldash in H8.
+    apply Partition_comm.
+    apply heap_update_substitution_lemma_p4.
+    apply Partition_comm; assumption. assumption.
+    split. assumption.
+    rewrite <- IHp2. apply H7. assumption.
+  + eapply satisfy_sand_elim. apply H1.
+    intros.
+    apply heap_update_substitution_lemma_p5 in H2.
+    destruct H2; destruct H2. destruct H2. destruct H6.
+    apply satisfy_lor_intro1.
+    eapply satisfy_sand_intro. apply H2.
+    rewrite H6 in H4.
+    rewrite <- IHp1 in H4. apply H4. assumption.
+    apply satisfy_land. split. assumption.
+    apply satisfy_lnot_hasvaldash. assumption.
+    (* other direction is similar *)
+    destruct H2. destruct H6.
+    apply satisfy_lor_intro2.
+    eapply satisfy_sand_intro. apply H2.
+    apply satisfy_land. split. assumption.
+    apply satisfy_lnot_hasvaldash. assumption.
+    rewrite H6 in H5.
+    rewrite <- IHp2 in H5. apply H5. assumption.
+- unfold asub_heap_update in H; fold asub_heap_update in H.
+  destruct (sublist_part_dec Nat.eq_dec (x :: evar e) (abound p1)).
+  inversion H.
+  apply option_app_elim in H; destruct H; destruct H.
+  inversion H0; clear H0; clear dependent ps.
+  rewrite satisfy_simp.
+  rewrite satisfy_simp.
+  split; intro; intros.
+  + pose proof (heap_update_substitution_lemma_p6 _ _ _ _ _ H1). destruct H3. destruct H3.
+    rewrite H3. rewrite <- IHp2; [|apply H]. eapply H0. apply H4.
+    apply satisfy_land. split. assumption.
+    apply satisfy_lnot_hasvaldash.
+    eapply Partition_dom_right1. apply H1.
+    apply heap_update_dom1.
+  + rewrite IHp2; [|apply H].
+    specialize H0 with h' (heap_update h'' (s x) (e s)).
+    rewrite satisfy_land in H2. destruct H2.
+    apply satisfy_lnot_hasvaldash in H3.
+    apply H0.
+    apply heap_update_substitution_lemma_p7; assumption.
+    assumption.
+Qed.
 
 (* ========================================= *)
 (* CONDITIONAL HEAP CLEAR SUBSTITUTION LEMMA *)
