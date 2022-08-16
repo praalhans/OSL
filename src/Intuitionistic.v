@@ -268,6 +268,99 @@ pose proof (heap_ext _ _ H3); clear H3.
 rewrite <- H4. assumption.
 Qed.
 
+Proposition Extends_heap_update_back (h h': heap) (k v: Z):
+  dom h k -> Extends (heap_update h k v) h' ->
+  exists h'', Extends h h'' /\ h' = heap_update h'' k v.
+intros.
+unfold Extends in H0; destruct H0.
+rewrite dom_spec in H; remember (h k); destruct o.
+2: exfalso; apply H; auto.
+clear H. exists (heap_update h' k z); split.
+- unfold Extends.
+  exists x.
+  assert (forall k : Z, ~ (dom h k /\ dom x k)). {
+    intro; intro; destruct H.
+    pose proof (Partition_spec4 _ _ _ H0 k0).
+    apply H2. split; auto.
+    destruct (Z.eq_dec k k0).
+    rewrite e.
+    apply heap_update_dom1.
+    apply heap_update_dom2; auto. }
+  pose proof (Partition_intro1 h x H); destruct H1.
+  assert (forall n : Z, x0 n = heap_update h' k z n). {
+    intros. destruct (Z.eq_dec n k).
+    rewrite e. rewrite heap_update_spec1.
+    erewrite Partition_spec1; [|apply H1|].
+    auto. apply dom_spec. rewrite <- Heqo. intro. inversion H2.
+    rewrite heap_update_spec2; auto.
+    destruct (dom_dec h n).
+    rewrite (Partition_spec1 x0) with (h1 := h) (h2 := x); auto.
+    rewrite (Partition_spec1 h') with (h1 := heap_update h k v) (h2 := x); auto.
+    rewrite heap_update_spec2; auto.
+    apply heap_update_dom2; auto.
+    destruct (dom_dec x n).
+    rewrite (Partition_spec2 x0) with (h1 := h) (h2 := x); auto.
+    rewrite (Partition_spec2 h') with (h1 := heap_update h k v) (h2 := x); auto.
+    rewrite (Partition_spec3 x0) with (h1 := h) (h2 := x); auto.
+    rewrite (Partition_spec3 h') with (h1 := heap_update h k v) (h2 := x); auto.
+    intro. rewrite heap_update_dom2 in H4; auto. }
+  pose proof (heap_ext x0 (heap_update h' k z) H2).
+  rewrite <- H3. assumption.
+- rewrite heap_update_collapse.
+  apply heap_ext; intro.
+  destruct (Z.eq_dec k n).
+  rewrite <- e.
+  rewrite heap_update_spec1.
+  erewrite Partition_spec1; [|apply H0|].
+  rewrite heap_update_spec1; reflexivity.
+  apply heap_update_dom1.
+  rewrite heap_update_spec2; auto.
+Qed.
+
+Proposition Extends_lift_heap_update2 (h h': heap) (k v: Z):
+  Extends h h' -> dom h k ->
+  Extends (heap_update h k v) (heap_update h' k v).
+intros.
+unfold Extends in *. destruct H.
+exists x.
+assert (forall z : Z, ~ (dom (heap_update h k v) z /\ dom x z)). {
+  intro; intro; destruct H1.
+  destruct (Z.eq_dec k z).
+  eapply Partition_spec4. apply H. split. apply H0. rewrite e; auto.
+  apply heap_update_dom2 in H1; auto.
+  eapply Partition_spec4. apply H. split. apply H1. auto. }
+pose proof (Partition_intro1 _ _ H1); destruct H2.
+assert (forall n : Z, heap_update h' k v n = x0 n). {
+  intros. destruct (Z.eq_dec k n).
+  rewrite e. rewrite heap_update_spec1.
+  erewrite Partition_spec1; [|apply H2|].
+  rewrite e. rewrite heap_update_spec1; auto.
+  rewrite e. apply heap_update_dom1.
+  rewrite heap_update_spec2; auto.
+  destruct (dom_dec h n).
+  erewrite (Partition_spec1 h'); [|apply H|auto].
+  erewrite (Partition_spec1 x0); [|apply H2|].
+  rewrite heap_update_spec2; auto.
+  apply heap_update_dom2; auto.
+  destruct (dom_dec x n).
+  erewrite (Partition_spec2 h'); [|apply H|auto].
+  erewrite (Partition_spec2 x0); [|apply H2|]; auto.
+  erewrite (Partition_spec3 h'); [|apply H|auto|auto].
+  erewrite (Partition_spec3 x0); [auto|apply H2| |auto].
+  intro. rewrite heap_update_dom2 in H5; auto. }
+pose proof (heap_ext _ _ H3).
+rewrite H4. assumption.
+Qed.
+
+Proposition Extends_dom (h h': heap) (k: Z):
+  dom h k -> Extends h h' -> dom h' k.
+intros.
+unfold Extends in H0; destruct H0.
+eapply Partition_dom_inv_left.
+apply H0.
+apply H.
+Qed.
+
 (* ====================================== *)
 (* INTUITIONISTIC SEMANTICS OF ASSERTIONS *)
 (* ====================================== *)
@@ -643,6 +736,18 @@ split; intro.
   rewrite heap_update_spec2 in H0; assumption.
 Qed.
 
+Proposition cheap_update_substitution_lemma_p3 (s: store) (x v: V) (e: expr) (x1: Z):
+  ~ In v (x :: evar e) -> store_update s v x1 x = s x /\ e (store_update s v x1) = e s.
+intro. split.
+unfold store_update.
+destruct (Nat.eq_dec v x).
+exfalso. rewrite e0 in H. apply H. left. reflexivity. reflexivity.
+apply econd. intro. intro. unfold store_update.
+destruct (Nat.eq_dec v x0).
+exfalso. apply H. right. rewrite e0. assumption.
+reflexivity.
+Qed.
+
 Lemma cheap_update_substitution_lemma (h: heap) (s: store) (p: assert) (x: V) (e: expr):
   dom h (s x) ->
   forall ps, asub_cheap_update p x e = Some ps ->
@@ -667,34 +772,54 @@ induction p; intros.
   apply IHp1; assumption.
   apply IHp2; assumption.
 - apply option_app_elim in H0; destruct H0; destruct H0.
+  fold asub_cheap_update in H0.
   apply option_app_elim in H1; destruct H1; destruct H1.
+  fold asub_cheap_update in H1.
   inversion H2.
-  simpl.
-  
-- unfold asub_heap_update in H; fold asub_heap_update in H.
+  simpl; split; intros.
+  + pose proof (Extends_heap_update_back _ _ _ _ H H5).
+    destruct H7; destruct H7.
+    rewrite H8. rewrite H8 in H6.
+    pose proof (Extends_dom _ _ _ H H7).
+    rewrite <- IHp1 in H6; [|auto|apply H0].
+    rewrite <- IHp2; [|auto|apply H1].
+    apply H3; auto.
+  + rewrite IHp1 in H6.
+    apply H3 in H6.
+    rewrite <- IHp2 in H6; [| |apply H1].
+    assumption.
+    eapply Extends_dom. apply H. auto.
+    apply Extends_lift_heap_update2; auto.
+    eapply Extends_dom. apply H. auto.
+    assumption.
+- unfold asub_cheap_update in H0; fold asub_cheap_update in H0.
   destruct (in_dec Nat.eq_dec v (x :: evar e)).
-  inversion H.
-  apply option_app_elim in H; destruct H; destruct H.
-  inversion H0; clear H0.
+  inversion H0.
+  apply option_app_elim in H0; destruct H0; destruct H0.
+  inversion H1; clear H1.
   simpl.
-  apply iff_split_not_forall_not; intro.
+  apply iff_split_exists; intro.
   specialize IHp with h (store_update s v x1) x0.
-  apply IHp in H. rewrite H.
-  pose proof (heap_update_substitution_lemma_p3 s x v e x1 n).
-  destruct H0. rewrite H0. rewrite H1.
+  apply IHp in H0. rewrite H0.
+  pose proof (cheap_update_substitution_lemma_p3 s x v e x1 n).
+  destruct H1. rewrite H1. rewrite H2.
   apply iff_refl.
-- unfold asub_heap_update in H; fold asub_heap_update in H.
+  assert (v <> x). intro. apply n. rewrite H1. left; auto.
+  rewrite store_update_lookup_diff; auto.
+- unfold asub_cheap_update in H0; fold asub_cheap_update in H0.
   destruct (in_dec Nat.eq_dec v (x :: evar e)).
-  inversion H.
-  apply option_app_elim in H; destruct H; destruct H.
-  inversion H0; clear H0.
+  inversion H0.
+  apply option_app_elim in H0; destruct H0; destruct H0.
+  inversion H1; clear H1.
   simpl.
   apply iff_split_forall; intro.
   specialize IHp with h (store_update s v x1) x0.
-  apply IHp in H. rewrite H.
-  pose proof (heap_update_substitution_lemma_p3 s x v e x1 n).
-  destruct H0. rewrite H0. rewrite H1.
+  apply IHp in H0. rewrite H0.
+  pose proof (cheap_update_substitution_lemma_p3 s x v e x1 n).
+  destruct H1. rewrite H1. rewrite H2.
   apply iff_refl.
+  assert (v <> x). intro. apply n. rewrite H1. left; auto.
+  rewrite store_update_lookup_diff; auto.
 - unfold asub_heap_update in H; fold asub_heap_update in H.
   apply option_app_elim in H; destruct H; destruct H.
   apply option_app_elim in H0; destruct H0; destruct H0.
