@@ -533,6 +533,18 @@ simpl. intros. eapply H.
 apply H0. apply H1.
 Qed.
 
+Proposition satisfy_limp_hasvaldash_elim (h: heap) (s: store) (p: assert) (x: V):
+  dom h (s x) -> satisfy h s (limp (hasvaldash x) p) <-> satisfy h s p.
+intros. split; intro.
+rewrite satisfy_limp in H0.
+apply H0.
+apply Extends_refl.
+rewrite satisfy_hasvaldash; simpl; auto.
+rewrite satisfy_limp; intros.
+eapply satisfy_monotonic.
+apply H0. assumption.
+Qed.
+
 (* =================================== *)
 (* COINCIDENCE CONDITION ON ASSERTIONS *)
 (* =================================== *)
