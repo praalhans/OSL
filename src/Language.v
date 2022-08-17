@@ -947,11 +947,10 @@ Fixpoint asub_cheap_update (p: assert) (x: V) (e: expr): option assert :=
   | lforall y p => if in_dec Nat.eq_dec y (x :: evar e) then None else
       option_app (asub_cheap_update p x e) (fun ps => lforall y ps)
   | sand p q => option_app (asub_cheap_update p x e) (fun ps =>
-      option_app (asub_cheap_update q x e) (fun qs => limp (hasvaldash x)
-        (lor (sand (land ps (hasvaldash x)) q) (sand p (land qs (hasvaldash x))))))
+      option_app (asub_cheap_update q x e) (fun qs =>
+        lor (sand (land ps (hasvaldash x)) q) (sand p (land qs (hasvaldash x)))))
   | simp p q => if sublist_part_dec Nat.eq_dec (x :: evar e) (abound p) then None else
-      option_app (asub_cheap_update q x e) (fun qs => limp (hasvaldash x)
-        (simp p qs))
+      option_app (asub_cheap_update q x e) (fun qs => simp p qs)
   end.
 
 Proposition asub_cheap_update_defined_step1 (C: assert -> assert -> assert) (p1 p2: assert) (x: V) (e: expr)
@@ -1024,7 +1023,7 @@ try (apply asub_cheap_update_defined_step1; assumption; fail).
   + unfold abound in H; fold abound in H.
     apply In_app_split in H. destruct H.
     apply IHp2 in H0; destruct H0.
-    exists (limp (hasvaldash x) (simp p1 x0)).
+    exists (simp p1 x0).
     unfold asub_cheap_update. fold asub_cheap_update. rewrite H0.
     destruct (sublist_part_dec Nat.eq_dec (x :: evar e) (abound p1)).
     destruct e0 as (x1 & H1 & H2).
