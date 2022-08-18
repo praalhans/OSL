@@ -1308,22 +1308,62 @@ induction p; intros.
     destruct (dom_dec h' (s x)).
     * rewrite dom_spec in H. remember (h (s x)); destruct o; [clear H|exfalso;apply H;auto].
       rewrite dom_spec in H7. remember (h' (s x)); destruct o; [clear H7|exfalso;apply H7;auto].
-      assert (satisfy (heap_update h' (s x) z) (store_update s y z0) p1). { admit. }
       destruct H4.
-      rewrite satisfy_lforall in H7.
-      specialize H7 with z0.
-      rewrite satisfy_limp in H7.
+      rewrite satisfy_lforall in H4.
+      specialize H4 with z0.
+      rewrite satisfy_limp in H4.
       pose proof (Extends_heap_clear h (heap_update h' (s x) z) (s x)).
       apply Extends_heap_clear_update with (v := z) in H5.
-      
-
-      rewrite <- cheap_update_substitution_lemma in H; [| |apply H2].
-      
-      specialize 
-
-      (* TODO *)
-    * 
-
+      assert (x <> y). {
+        intro. apply fresh_notIn with (xs := x :: aoccur p1 ++ aoccur p2).
+        rewrite <- Heqy. rewrite <- H8. left; auto. }
+      pose proof (cheap_update_substitution_lemma (heap_update h' (s x) z) (store_update s y z0) p1 x y).
+      rewrite store_update_lookup_diff in H9; auto.
+      pose proof (heap_update_dom1 h' (s x) z).
+      apply H9 with (ps := x2) in H10; auto; clear H9.
+      simpl in H10; rewrite store_update_lookup_same in H10.
+      rewrite heap_update_collapse in H10.
+      rewrite heap_update_id with (v := z0) in H10; auto.
+      rewrite acond in H6.
+      apply <- H10 in H6.
+      apply H4 in H6.
+      rewrite cheap_update_substitution_lemma in H6; [| |apply H3].
+      simpl in H6.
+      rewrite store_update_lookup_diff in H6; auto.
+      rewrite store_update_lookup_same in H6.
+      rewrite heap_update_collapse in H6.
+      rewrite heap_update_id in H6; auto.
+      rewrite acond in H6. apply H6.
+      **  intro; intro. destruct (Nat.eq_dec y x4).
+          exfalso. rewrite <- e in H9. rewrite Heqy in H9.
+          eapply fresh_notInGeneral; [|apply H9]; intros.
+          right. apply in_or_app. right. apply in_or_app; auto.
+          rewrite store_update_lookup_diff; auto.
+      **  rewrite store_update_lookup_diff; auto.
+          apply heap_update_dom1.
+      **  apply H7; auto.
+          rewrite heap_update_spec1; auto.
+      **  intro; intro. destruct (Nat.eq_dec y x4).
+          exfalso. rewrite <- e in H9. rewrite Heqy in H9.
+          eapply fresh_notInGeneral; [|apply H9]; intros.
+          right. apply in_or_app. left. apply in_or_app; auto.
+          rewrite store_update_lookup_diff; auto.
+    * rewrite dom_spec in H. remember (h (s x)); destruct o; [clear H|exfalso;apply H;auto].
+      pose proof (IHp1 (heap_update h' (s x) z) s (heap_update_dom1 h' (s x) z) x0 H0).
+      rewrite heap_update_clear_collapse in H; auto.
+      rewrite <- H in H6; clear H.
+      destruct H4.
+      rewrite satisfy_limp in H.
+      apply H in H6.
+      rewrite IHp2 in H6; auto.
+      rewrite heap_update_clear_collapse in H6; auto.
+      apply heap_update_dom1.
+      apply Extends_heap_clear with (k := s x).
+      rewrite heap_update_spec1; auto.
+      eapply Extends_trans.
+      apply H5.
+      apply Extends_heap_update; auto.
+  + 
 - unfold asub_heap_clear in H; fold asub_heap_clear in H.
   destruct (Nat.eq_dec v x). inversion H.
   apply option_app_elim in H; destruct H; destruct H.
