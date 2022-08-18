@@ -251,6 +251,101 @@ exfalso. eapply Partition_spec4. apply H. split. apply H1. apply H0.
 assumption.
 Qed.
 
+Proposition Partition_heap_clear (h h1 h2: heap) (k: Z):
+  Partition h h1 h2 ->
+  dom h2 k ->
+  Partition (heap_clear h k) h1 (heap_clear h2 k).
+intros.
+assert (forall k0 : Z, ~ (dom h1 k0 /\ dom (heap_clear h2 k) k0)).
+{ intros; intro.
+  destruct H1.
+  destruct (Z.eq_dec k k0).
+  rewrite e in H2.
+  eapply heap_clear_dom1. apply H2.
+  apply heap_clear_dom2 in H2; auto.
+  eapply Partition_dom_right1. apply H.
+  apply H1. apply H2. }
+pose proof (Partition_intro1 h1 (heap_clear h2 k) H1); destruct H2.
+assert (forall n : Z, heap_clear h k n = x n).
+{ intros.
+  destruct (Z.eq_dec n k).
+  rewrite e.
+  rewrite heap_clear_spec1.
+  pose proof (Partition_dom_right2 _ _ _ _ H H0).
+  erewrite Partition_spec3; [auto|apply H2|auto|].
+  apply heap_clear_dom1.
+  rewrite heap_clear_spec2; auto.
+  destruct (dom_dec h1 n).
+  erewrite (Partition_spec1 h); [|apply H|auto].
+  erewrite (Partition_spec1 x); [auto|apply H2|auto].
+  destruct (dom_dec h2 n).
+  erewrite (Partition_spec2 h); [|apply H|auto].
+  erewrite (Partition_spec2 x); [|apply H2|].
+  rewrite heap_clear_spec2; auto.
+  apply heap_clear_dom2; auto.
+  erewrite (Partition_spec3 h); [|apply H|auto|auto].
+  erewrite (Partition_spec3 x); [auto|apply H2|auto|].
+  rewrite heap_clear_dom2; auto. }
+pose proof (heap_ext (heap_clear h k) x H3).
+rewrite H4. assumption.
+Qed.
+
+Proposition Partition_heap_clear2 (h h1 h2: heap) (k v: Z):
+  Partition (heap_clear h k) h1 h2 ->
+  h k = Some v ->
+  Partition h h1 (heap_update h2 k v).
+intros.
+assert (forall k0 : Z, ~ (dom h1 k0 /\ dom (heap_update h2 k v) k0)).
+{ intros; intro. destruct H1.
+  destruct (Z.eq_dec k0 k).
+  rewrite e in H1.
+  pose proof (Partition_dom_inv_left _ _ _ _ H H1).
+  eapply heap_clear_dom1; apply H3.
+  apply heap_update_dom2 in H2; auto.
+  eapply Partition_spec4. apply H.
+  split. apply H1. apply H2. }
+pose proof (Partition_intro1 h1 (heap_update h2 k v) H1); destruct H2.
+assert (forall n : Z, h n = x n).
+{ intros. destruct (Z.eq_dec n k).
+  rewrite e; rewrite H0.
+  erewrite (Partition_spec2 x); [|apply H2|].
+  rewrite heap_update_spec1; auto.
+  apply heap_update_dom1.
+  rewrite <- (heap_clear_spec2 h) with (k := k); auto.
+  destruct (dom_dec h1 n).
+  erewrite (Partition_spec1); [|apply H|auto].
+  erewrite (Partition_spec1 x); [auto|apply H2|auto].
+  destruct (dom_dec h2 n).
+  erewrite (Partition_spec2); [|apply H|auto].
+  erewrite (Partition_spec2 x); [|apply H2|].
+  rewrite heap_update_spec2; auto.
+  apply heap_update_dom2; auto.
+  erewrite (Partition_spec3); [|apply H|auto|auto].
+  erewrite (Partition_spec3 x); [auto|apply H2|auto|].
+  rewrite heap_update_dom2; auto. }
+pose proof (heap_ext h x H3).
+rewrite H4. assumption.
+Qed.
+
+Proposition Partition_heap_clear3 (h h1 h2: heap) (k: Z):
+  Partition (heap_clear h k) h1 h2 ->
+  ~ dom h k ->
+  Partition h h1 h2.
+intros.
+assert (forall n : Z, h n = heap_clear h k n).
+{ intros.
+  destruct (Z.eq_dec n k).
+  rewrite <- e.
+  rewrite heap_clear_spec1.
+  rewrite dom_spec in H0.
+  rewrite <- e in H0.
+  destruct (h n); auto.
+  exfalso; apply H0; intro; inversion H1.
+  rewrite heap_clear_spec2; auto. }
+pose proof (heap_ext h (heap_clear h k) H1).
+rewrite H2; auto.
+Qed.
+
 End HeapFacts.
 
 (* ======================= *)

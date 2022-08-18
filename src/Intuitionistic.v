@@ -380,6 +380,31 @@ exfalso; eapply heap_clear_dom1; apply H0.
 rewrite heap_update_spec2; auto.
 Qed.
 
+Proposition Extends_heap_clear2 (h h': heap) (k: Z):
+  Extends h h' (* -> dom h' k *) ->
+  Extends (heap_clear h k) (heap_clear h' k).
+repeat rewrite Extends_included; intros.
+destruct (Z.eq_dec n k).
+rewrite e.
+repeat rewrite heap_clear_spec1; reflexivity.
+repeat rewrite heap_clear_spec2; auto.
+apply H.
+apply heap_clear_dom2 in H0; auto.
+Qed.
+
+Proposition Extends_heap_clear_update2 (h h': heap) (k v: Z):
+  Extends h h' ->
+  Extends (heap_clear h k) (heap_update h' k v).
+repeat rewrite Extends_included; intros.
+destruct (Z.eq_dec n k).
+rewrite e in H0.
+exfalso. eapply heap_clear_dom1. apply H0.
+rewrite heap_update_spec2; auto.
+rewrite heap_clear_spec2; auto.
+apply H.
+eapply heap_clear_dom2; [|apply H0]. auto.
+Qed.
+
 (* ====================================== *)
 (* INTUITIONISTIC SEMANTICS OF ASSERTIONS *)
 (* ====================================== *)
@@ -1363,151 +1388,98 @@ induction p; intros.
       eapply Extends_trans.
       apply H5.
       apply Extends_heap_update; auto.
-  + 
-- unfold asub_heap_clear in H; fold asub_heap_clear in H.
-  destruct (Nat.eq_dec v x). inversion H.
-  apply option_app_elim in H; destruct H; destruct H.
-  inversion H0; clear dependent ps.
-  simpl; apply iff_split_not_forall_not; intro.
+  + split.
+    * rewrite satisfy_limp; intros.
+      pose proof (Extends_dom h h' (s x) H H5).
+      rewrite IHp1 in H6; auto.
+      apply <- IHp2; auto.
+      rewrite satisfy_limp in H4.
+      apply H4; auto.
+      apply Extends_heap_clear2; auto.
+    * assert (x <> y). {
+        intro. apply fresh_notIn with (xs := x :: aoccur p1 ++ aoccur p2).
+        rewrite <- Heqy. rewrite <- H5. left; auto. }
+      rewrite satisfy_lforall; intros.
+      rewrite satisfy_limp; intros.
+      rewrite cheap_update_substitution_lemma; [| |apply H3].
+      rewrite cheap_update_substitution_lemma in H7; [| |apply H2].
+      simpl; simpl in H7.
+      rewrite store_update_lookup_diff in *; auto.
+      rewrite store_update_lookup_same in *.
+      rewrite acond with (t := s).
+      rewrite acond with (t := s) in H7.
+      rewrite satisfy_limp in H4.
+      apply H4; auto.
+      apply Extends_heap_clear_update2; auto.
+      { intro; intro. destruct (Nat.eq_dec y x4).
+        rewrite <- e in H8. rewrite Heqy in H8.
+        exfalso. eapply fresh_notInGeneral; [intros|apply H8].
+        right. apply in_or_app. left. apply in_or_app; auto.
+        rewrite store_update_lookup_diff; auto. }
+      { intro; intro. destruct (Nat.eq_dec y x4).
+        rewrite <- e in H8. rewrite Heqy in H8.
+        exfalso. eapply fresh_notInGeneral; [intros|apply H8].
+        right. apply in_or_app. right. apply in_or_app; auto.
+        rewrite store_update_lookup_diff; auto. }
+      { rewrite store_update_lookup_diff; auto.
+        eapply Extends_dom. apply H. auto. }
+      { rewrite store_update_lookup_diff; auto.
+        eapply Extends_dom. apply H. auto. }
+- unfold asub_cheap_clear in H0; fold asub_cheap_clear in H0.
+  destruct (Nat.eq_dec v x). inversion H0.
+  apply option_app_elim in H0; destruct H0; destruct H0.
+  inversion H1; clear dependent ps.
+  simpl; apply iff_split_exists; intro.
   specialize IHp with h (store_update s v x1) x0.
-  apply IHp in H. rewrite H.
+  apply IHp in H0. rewrite H0.
   rewrite store_update_lookup_diff.
   apply iff_refl. assumption.
-- unfold asub_heap_clear in H; fold asub_heap_clear in H.
-  destruct (Nat.eq_dec v x). inversion H.
-  apply option_app_elim in H; destruct H; destruct H.
-  inversion H0; clear dependent ps.
+  rewrite store_update_lookup_diff; auto.
+- unfold asub_cheap_clear in H0; fold asub_cheap_clear in H0.
+  destruct (Nat.eq_dec v x). inversion H0.
+  apply option_app_elim in H0; destruct H0; destruct H0.
+  inversion H1; clear dependent ps.
   simpl; apply iff_split_forall; intro.
   specialize IHp with h (store_update s v x1) x0.
-  apply IHp in H. rewrite H.
+  apply IHp in H0. rewrite H0.
   rewrite store_update_lookup_diff.
   apply iff_refl. assumption.
-- apply option_app_elim in H; destruct H; destruct H.
-  fold asub_heap_clear in H; fold asub_heap_clear in H0.
+  rewrite store_update_lookup_diff; auto.
+- simpl in H0.
+  destruct (in_dec Nat.eq_dec x (abound p1)).
+  inversion H0.
   apply option_app_elim in H0; destruct H0; destruct H0.
-  inversion H1. clear dependent ps.
-  simpl. split; intro.
-  + intro. apply H1. intros. intro.
-    destruct H3; destruct H4.
-    rewrite IHp1 in H4; try assumption.
-    rewrite IHp2 in H5; try assumption.
-    eapply H2. split.
-    2: split; [apply H4 | apply H5].
-    apply heap_clear_substitution_lemma_p1. assumption.
-  + intro. apply H1; clear H1. intros. intro.
-    destruct H1; destruct H3.
-    pose proof (heap_clear_substitution_lemma_p2 _ _ _ _ H1).
-    destruct H5; destruct H5; destruct H5; destruct H6.
-    rewrite H6 in *; clear dependent h1.
-    rewrite H7 in *; clear dependent h2.
-    rewrite <- IHp1 in H3; [|apply H].
-    rewrite <- IHp2 in H4; [|apply H0].
-    eapply H2. split. apply H5. auto.
-- apply option_app_elim in H; destruct H; destruct H.
-  fold asub_heap_clear in H.
-  apply option_app_elim in H0; destruct H0; destruct H0.
-  apply option_app_elim in H1; destruct H1; destruct H1.
-  inversion H2; clear dependent ps.
-  remember (fresh (x :: aoccur p1 ++ aoccur p2)) as y.
+  inversion H1; clear dependent ps.
+  rewrite satisfy_sand.
   split; intro.
-  + rewrite satisfy_land in H2; destruct H2.
-    rewrite satisfy_simp; intros.
-    remember (h' (s x)); destruct o.
-    * remember (store_update s y z) as s'.
-      rewrite acond with (t := s') in H5.
-      pose proof (heap_update_substitution_lemma (heap_clear h' (s x)) s' p1 x y x1 H0).
-      assert (h' = heap_update (heap_clear h' (s x)) (s' x) (y s')). {
-        eapply heap_clear_substitution_lemma_p5. apply Heqo. apply Heqs'. intro. rewrite H7 in Heqy.
-        pose proof (fresh_notIn (y :: aoccur p1 ++ aoccur p2)). rewrite <- Heqy in H8.
-        apply H8. left. auto. }
-      rewrite <- H7 in H6. apply H6 in H5.
-      simpl in H3.
-      pose proof (Partition_intro1 h (heap_clear h' (s x))); destruct H8.
-      pose proof (Partition_spec4 h'' (heap_clear h (s x)) h' H4).
-      apply heap_clear_substitution_lemma_p3. assumption.
-      specialize H3 with z x3 (heap_clear h' (s x)).
-      rewrite <- Heqs' in H3.
-      pose proof (H3 H8 H5).
-      pose proof (heap_update_substitution_lemma x3 s' p2 x y x2 H1).
-      apply H10 in H9.
-      rewrite acond with (t := s) in H9.
-      assert (h'' = heap_update x3 (s' x) (y s')). {
-        eapply heap_clear_substitution_lemma_p6. apply H4.
-        apply H8. apply Heqo. intro. rewrite H11 in Heqy.
-        pose proof (fresh_notIn (y :: aoccur p1 ++ aoccur p2)). rewrite <- Heqy in H12.
-        apply H12. left. auto. apply Heqs'. }
-      rewrite H11. assumption.
-      rewrite Heqs'.
-      apply heap_clear_substitution_lemma_p4.
-      rewrite Heqy.
-      apply fresh_notInGeneral. intros.
-      right. apply in_or_app. right. unfold aoccur. apply in_or_app; auto.
-      rewrite Heqs'.
-      apply eq_restr_comm.
-      apply heap_clear_substitution_lemma_p4.
-      rewrite Heqy.
-      apply fresh_notInGeneral. intros.
-      right. apply in_or_app. left. unfold aoccur. apply in_or_app; auto.
-    * rewrite satisfy_simp in H2.
-      pose proof (Partition_intro1 h h'). destruct H6. {
-        intro. destruct (Z.eq_dec k (s x)). intro. destruct H6.
-        apply dom_spec in H7. apply H7. rewrite e. symmetry; assumption.
-        pose proof (Partition_spec4 _ _ _ H4 k).
-        intro. destruct H7. apply H6. split.
-        apply heap_clear_dom2. intro. apply n. symmetry. assumption. assumption. assumption. }
-      specialize H2 with h' x3.
-      pose proof (H2 H6).
-      assert (satisfy h' s (land p1 (lnot (hasvaldash x)))).
-      rewrite satisfy_land. split. assumption.
-      rewrite satisfy_lnot.
-      rewrite satisfy_hasvaldash.
-      rewrite dom_spec. intro. apply H8. symmetry. assumption.
-      apply H7 in H8; clear H7.
-      rewrite IHp2 in H8; try assumption.
-      assert (h'' = heap_clear x3 (s x)). {
-        eapply heap_clear_substitution_lemma_p7. apply H4.
-        rewrite dom_spec; intro. apply H7. symmetry; assumption. assumption. }
-      rewrite H7. assumption.
-  + rewrite satisfy_land. split.
-    * rewrite satisfy_simp. intros.
-      rewrite satisfy_land in H4; destruct H4.
-      rewrite satisfy_lnot in H5; rewrite satisfy_hasvaldash in H5.
-      pose proof (Partition_intro1 (heap_clear h (s x)) h'). destruct H6. {
-      intro. intro. destruct H6. destruct (Z.eq_dec (s x) k). apply H5. simpl.
-      rewrite e. assumption. rewrite heap_clear_dom2 in H6.
-      eapply Partition_spec4. apply H3. split. apply H6. apply H7. assumption. }
-      rewrite satisfy_simp in H2.
-      assert (satisfy x3 s p2). eapply H2. apply H6. assumption.
-      apply <- IHp2; try assumption.
-      pose proof (heap_clear_substitution_lemma_p7 _ _ _ _ _ H6 H5 H3).
-      rewrite <- H8. assumption.
-    * assert (y <> x) as G. {
-        intro. rewrite H3 in Heqy. pose proof fresh_notIn (x :: aoccur p1 ++ aoccur p2).
-        apply H4. rewrite <- Heqy. left. auto. }
-      rewrite satisfy_lforall. intros.
-      rewrite satisfy_simp. intros.
-      pose proof (heap_update_substitution_lemma h' (store_update s y v) p1 x y x1 H0).
-      apply H5 in H4. clear H5.
-      rewrite acond with (t := s) in H4. simpl in H4. rewrite store_update_lookup_same in H4.
-      rewrite store_update_lookup_diff in H4; try assumption. rewrite satisfy_simp in H2.
-      pose proof (heap_clear_substitution_lemma_p8 h h' h'' (s x) v H3). destruct H5.
-      pose proof (H2 _ _ H5 H4).
-      rewrite acond with (t := store_update s y v) in H6.
-      assert (x3 = heap_update h'' (s x) v). {
-        eapply heap_clear_substitution_lemma_p9. apply H3. assumption. }
-      rewrite H7 in H6.
-      pose proof (heap_update_substitution_lemma h'' (store_update s y v) p2 x y x2 H1).
-      simpl in H8. rewrite store_update_lookup_same in H8.
-      rewrite store_update_lookup_diff in H8; try assumption.
-      rewrite <- H8 in H6. assumption.
-      apply eq_restr_comm.
-      apply heap_clear_substitution_lemma_p4.
-      rewrite Heqy. apply fresh_notInGeneral. intros. right.
-      apply in_or_app. right. apply in_or_app. auto.
-      apply heap_clear_substitution_lemma_p4.
-      rewrite Heqy. apply fresh_notInGeneral. intros. right.
-      apply in_or_app. left. apply in_or_app. auto.
-Qed.
+  + destruct H1 as (h1 & h2 & H1 & H2 & H3).
+    rewrite satisfy_land in H3; destruct H3.
+    rewrite satisfy_hasvaldash in H4.
+    rewrite IHp2 in H3; auto.
+    rewrite satisfy_sand.
+    exists h1. exists (heap_clear h2 (s x)).
+    split.
+    apply Partition_heap_clear; auto.
+    split; auto.
+  + rewrite satisfy_sand in H1.
+    destruct H1 as (h1 & h2 & H1 & H2 & H3).
+    exists h1.
+    rewrite dom_spec in H. remember (h (s x)); destruct o. clear H.
+    2: exfalso; apply H; auto.
+    exists (heap_update h2 (s x) z).
+    split.
+    apply Partition_heap_clear2; auto.
+    split; auto.
+    rewrite satisfy_land; split.
+    rewrite IHp2; auto.
+    rewrite heap_update_clear_collapse; auto.
+    intro.
+    pose proof (Partition_dom_inv_right _ _ _ _ H1 H).
+    eapply heap_clear_dom1. apply H4.
+    apply heap_update_dom1.
+    rewrite satisfy_hasvaldash.
+    apply heap_update_dom1.
+- 
 Admitted.
 
 (* ========================== *)
