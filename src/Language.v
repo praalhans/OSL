@@ -1042,6 +1042,33 @@ try (apply asub_cheap_update_defined_step1; assumption; fail).
     eapply H2. apply H0. apply H3.
 Qed.
 
+(* ======================================= *)
+(* INTUITIONISTIC HEAP UPDATE SUBSTITUTION *)
+(* ======================================= *)
+
+Definition asub_iheap_update (p: assert) (x: V) (e: expr): option assert :=
+  match asub_cheap_update p x e with
+  | None => None
+  | Some ps => limp (hasvaldash x) ps
+  end.
+
+Proposition asub_iheap_update_defined (p: assert) (x: V) (e: expr):
+  (forall y, In y (x :: evar e) -> ~In y (abound p)) <-> exists q, asub_iheap_update p x e = Some q.
+split; intro.
+- rewrite (asub_cheap_update_defined p x e) in H; destruct H.
+  exists (limp (hasvaldash x) x0).
+  unfold asub_iheap_update.
+  rewrite H; reflexivity.
+- destruct H.
+  unfold asub_iheap_update in H.
+  remember (asub_cheap_update p x e). destruct o.
+  symmetry in Heqo.
+  assert (exists q, asub_cheap_update p x e = Some q)
+    by (exists a; auto).
+  rewrite <- (asub_cheap_update_defined p x e) in H0; auto.
+  inversion H.
+Qed.
+
 (* =================================== *)
 (* CONDITIONAL HEAP CLEAR SUBSTITUTION *)
 (* =================================== *)
@@ -1069,8 +1096,8 @@ Fixpoint asub_cheap_clear (p: assert) (x: V): option assert :=
         sand p (land qs (hasvaldash x)))
   | simp p q => let y := fresh (x :: aoccur p ++ aoccur q) in
       option_app (asub_cheap_clear q x) (fun qs =>
-        option_app (asub_cheap_update p x y) (fun pss =>
-          option_app (asub_cheap_update q x y) (fun qss =>
+        option_app (asub_iheap_update p x y) (fun pss =>
+          option_app (asub_iheap_update q x y) (fun qss =>
             (land (simp p qs) (lforall y (simp pss qss))))))
   end.
 
@@ -1198,7 +1225,7 @@ try (apply asub_cheap_clear_defined_step2; assumption; fail).
     (intro; apply H; apply in_or_app; auto).
     rewrite IHp2 in H0. destruct H0.
     remember (fresh (x :: aoccur p1 ++ aoccur p2)).
-    pose proof (asub_cheap_update_defined p1 x v).
+    pose proof (asub_iheap_update_defined p1 x v).
     assert (forall y : V, In y (x :: evar v) -> ~ In y (abound p1)).
     { intros. inversion H2. rewrite <- H3.
       intro. apply H. apply in_or_app; auto.
@@ -1209,7 +1236,7 @@ try (apply asub_cheap_clear_defined_step2; assumption; fail).
         intros. right. apply in_or_app. left.
         apply in_or_app. left. assumption. }
     apply H1 in H2; clear H1; destruct H2.
-    pose proof (asub_cheap_update_defined p2 x v).
+    pose proof (asub_iheap_update_defined p2 x v).
     assert (forall y : V, In y (x :: evar v) -> ~ In y (abound p2)).
     { intros. inversion H3. rewrite <- H4.
       intro. apply H. apply in_or_app; auto.
@@ -1227,7 +1254,7 @@ try (apply asub_cheap_clear_defined_step2; assumption; fail).
     apply option_app_elim in H0; destruct H0; destruct H0.
     apply option_app_elim in H1; destruct H1; destruct H1.
     assert (~ In x (abound p1)).
-      pose proof (asub_cheap_update_defined p1 x (fresh (x :: aoccur p1 ++ aoccur p2))).
+      pose proof (asub_iheap_update_defined p1 x (fresh (x :: aoccur p1 ++ aoccur p2))).
       apply <- H3. exists x2; auto. left; auto.
     assert (~ In x (abound p2)).
       apply <- IHp2. exists x1; auto.

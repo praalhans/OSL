@@ -352,6 +352,15 @@ pose proof (heap_ext _ _ H3).
 rewrite H4. assumption.
 Qed.
 
+Proposition Extends_lift_heap_update3 (h h': heap) (k v: Z):
+  Extends h h' -> dom h' k ->
+  Extends (heap_update h k v) (heap_update h' k v).
+intros.
+destruct (dom_dec h k).
+apply Extends_lift_heap_update2; auto.
+apply Extends_lift_heap_update; auto.
+Qed.
+
 Proposition Extends_dom (h h': heap) (k: Z):
   dom h k -> Extends h h' -> dom h' k.
 intros.
@@ -1284,9 +1293,68 @@ induction p; intros.
     eapply Partition_dom_inv_left. apply H2. assumption.
 Qed.
 
+(* ============================================= *)
+(* INTUITIONISTIC HEAP UPDATE SUBSTITUTION LEMMA *)
+(* ============================================= *)
+
+Lemma iheap_update_substitution_lemma (h: heap) (s: store) (p: assert) (x: V) (e: expr):
+  forall ps, asub_iheap_update p x e = Some ps ->
+    (satisfy h s ps <-> satisfy (heap_update h (s x) (e s)) s p).
+intros. unfold asub_iheap_update in H.
+remember (asub_cheap_update p x e); destruct o; try inversion H.
+symmetry in Heqo; clear dependent ps.
+split; intro.
+- rewrite satisfy_limp in H.
+  destruct (dom_dec h (s x)).
+  + specialize H with h.
+    pose proof (Extends_refl h).
+    apply H in H1; clear H.
+    rewrite cheap_update_substitution_lemma in H1; [| |apply Heqo]; auto.
+    rewrite satisfy_hasvaldash; auto.
+  + specialize H with (heap_update h (s x) 0%Z).
+    pose proof (Extends_heap_update h (s x) 0%Z H0).
+    apply H in H1; clear H.
+    rewrite cheap_update_substitution_lemma in H1; [| |apply Heqo]; auto.
+    rewrite heap_update_collapse in H1; auto.
+    apply heap_update_dom1.
+    rewrite satisfy_hasvaldash.
+    apply heap_update_dom1.
+- rewrite satisfy_limp; intros.
+  rewrite satisfy_hasvaldash in H1.
+  pose proof (satisfy_monotonic _ _ _ H
+    (heap_update h' (s x) (e s)) (Extends_lift_heap_update3 _ _ _ (e s) H0 H1)).
+  rewrite <- cheap_update_substitution_lemma in H2; [| |apply Heqo]; auto.
+Qed.
+
 (* ========================================= *)
 (* CONDITIONAL HEAP CLEAR SUBSTITUTION LEMMA *)
 (* ========================================= *)
+
+Proposition cheap_clear_substitution_lemma_p1 (h h' h'' h0: heap) (k: Z):
+  Partition h'' (heap_clear h k) h' ->
+  ~ dom h' k -> Partition h0 h h' ->
+  h'' = heap_clear h0 k.
+Admitted.
+
+Proposition cheap_clear_substitution_lemma_p2 (h h' h'': heap) (k: Z):
+  Partition h'' (heap_clear h k) h' -> dom h' k ->
+  exists h0, Partition h0 h (heap_clear h' k).
+intros.
+apply Partition_intro1; intros.
+intro; destruct H1.
+destruct (Z.eq_dec k k0).
+exfalso. rewrite <- e in H2. eapply heap_clear_dom1; apply H2.
+rewrite heap_clear_dom2 in H2; auto.
+eapply Partition_spec4; [apply H|split]; [|apply H2].
+rewrite heap_clear_dom2; auto.
+Qed.
+
+Proposition cheap_clear_substitution_lemma_p3 (h h' h'' h0: heap) (k v: Z):
+  Partition h'' (heap_clear h k) h' ->
+  Partition h0 h (heap_clear h' k) ->
+  h' k = Some v ->
+  h'' = heap_update h0 k v.
+Admitted.
 
 Lemma cheap_clear_substitution_lemma (h: heap) (s: store) (p: assert) (x: V):
   dom h (s x) ->
@@ -1479,7 +1547,88 @@ induction p; intros.
     apply heap_update_dom1.
     rewrite satisfy_hasvaldash.
     apply heap_update_dom1.
-- 
+- simpl in H0.
+  remember (fresh (x :: aoccur p1 ++ aoccur p2)) as y.
+  apply option_app_elim in H0; destruct H0; destruct H0.
+  apply option_app_elim in H1; destruct H1; destruct H1.
+  apply option_app_elim in H2; destruct H2; destruct H2.
+  inversion H3; clear dependent ps.
+  split; intro.
+  + rewrite satisfy_land in H3; destruct H3.
+    rewrite satisfy_simp in H3.
+    rewrite satisfy_lforall in H4.
+    rewrite satisfy_simp; intros.
+    destruct (dom_dec h' (s x)).
+    * rewrite dom_spec in H7.
+      remember (h' (s x)); destruct o.
+      2: exfalso; apply H7; auto.
+      assert (x <> y).
+      { admit. }
+      rewrite acond with (t := store_update s y z) in H6.
+      pose proof (iheap_update_substitution_lemma (heap_clear h' (s x)) (store_update s y z) p1 x y x1 H1).
+      specialize H4 with z.
+      rewrite satisfy_simp in H4.
+      simpl in H9.
+      rewrite store_update_lookup_same in H9.
+      rewrite store_update_lookup_diff in H9; auto.
+      rewrite heap_clear_update_collapse in H9; auto.
+      rewrite <- H9 in H6; clear H9.
+      pose proof (cheap_clear_substitution_lemma_p2 _ _ _ _ H5).
+      rewrite dom_spec in H9.
+      rewrite Heqo in H7. apply H9 in H7; clear H9; destruct H7.
+      apply H4 with (h'' := x3) in H6; auto.
+      rewrite iheap_update_substitution_lemma in H6; [|apply H2].
+      simpl in H6; rewrite store_update_lookup_same in H6; rewrite store_update_lookup_diff in H6; auto.
+      erewrite <- cheap_clear_substitution_lemma_p3 in H6; [|apply H5|apply H7|auto].
+      rewrite <- acond with (s := s) (t := store_update s y z) in H6.
+      assumption.
+      admit. admit.
+    * assert (forall k : Z, ~ (dom h k /\ dom h' k)).
+      { admit. }
+      pose proof (Partition_intro1 h h' H8); destruct H9.
+      apply H3 with (h'' := x3) in H6; auto.
+      rewrite IHp2 in H6; auto.
+      assert (h'' = heap_clear x3 (s x)).
+      apply (cheap_clear_substitution_lemma_p1 _ _ _ _ _ H5 H7 H9).
+      rewrite H10. assumption.
+      eapply Partition_dom_inv_left. apply H9. assumption.
+  + rewrite satisfy_simp in H3.
+    rewrite satisfy_land; split.
+    * rewrite satisfy_simp; intros.
+      assert (forall k : Z, ~(dom (heap_clear h (s x)) k /\ dom h' k)).
+      { admit. }
+      pose proof (Partition_intro1 _ _ H6); clear H6; destruct H7.
+      apply H3 in H6; auto.
+      assert (heap_clear h'' (s x) = x3).
+      { admit. }
+      rewrite <- H7 in H6.
+      apply <- IHp2 in H6.
+      apply H6. assumption.
+      eapply Partition_dom_inv_left. apply H4. assumption.
+    * rewrite satisfy_lforall; intros.
+      rewrite satisfy_simp; intros.
+      remember (store_update s y v) as s'.
+      rewrite iheap_update_substitution_lemma in H5; [|apply H1].
+      assert (x <> y).
+      { admit. }
+      simpl in H5. rewrite Heqs' in H5.
+      rewrite store_update_lookup_same in H5.
+      rewrite store_update_lookup_diff in H5; auto.
+      rewrite acond with (t := s) in H5.
+      assert (forall k : Z, ~(dom (heap_clear h (s x)) k /\ dom (heap_update h' (s x) v) k)).
+      { admit. }
+      pose proof (Partition_intro1 _ _ H7); clear H7; destruct H8.
+      apply H3 with (h'' := x3) in H5; auto.
+      rewrite <- acond with (s := store_update s y v) in H5.
+      rewrite iheap_update_substitution_lemma; [|apply H2].
+      simpl. rewrite Heqs'.
+      rewrite store_update_lookup_same.
+      rewrite store_update_lookup_diff; auto.
+      assert (heap_update h'' (s x) v = x3).
+      { admit. }
+      rewrite H8; auto.
+      admit.
+      admit.
 Admitted.
 
 (* ========================== *)
