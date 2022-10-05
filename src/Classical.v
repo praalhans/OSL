@@ -2171,3 +2171,179 @@ Module ClassicalIHeap := Classical IHeap.
 Import ClassicalIHeap.
 Print Assumptions result.
 
+(* Example equivalence *)
+Section Example.
+
+Variable x: V.
+Variable y: V.
+Variable z: V.
+
+Definition f1: assert := (land (hasvaldash x)
+  (lor (land (equals y x) (equals z 0%Z))
+    (land (lnot (equals y x)) (hasval y z)))).
+Definition f2: assert := (sand (pointstodash x)
+  (simp (pointsto x 0%Z) (hasval y z))).
+
+Example wp_equivalence: forall h s, satisfy h s (land (limp f1 f2) (limp f2 f1)).
+intros.
+rewrite satisfy_land; split; rewrite satisfy_limp; intro.
+- unfold f1 in H.
+  rewrite satisfy_land in H; destruct H.
+  rewrite satisfy_hasvaldash in H.
+  unfold f2.
+  (* Construct a heap *)
+    rewrite dom_spec in H.
+    remember (h (x s)); destruct o.
+    2: rewrite Heqo in H; exfalso; apply H; reflexivity.
+    pose proof (Partition_intro2 h (heap_update heap_empty (s x) z0)).
+    destruct H1. {
+    intros.
+    destruct (Z.eq_dec (s x) k).
+    rewrite e.
+    rewrite heap_update_spec1.
+    rewrite Heqo; simpl.
+    rewrite e; reflexivity.
+    rewrite heap_update_spec2; auto.
+    rewrite heap_empty_spec.
+    rewrite heap_update_dom2 in H1; auto.
+    rewrite dom_spec in H1.
+    rewrite heap_empty_spec in H1.
+    exfalso; apply H1; auto. }
+  eapply satisfy_lor_elim; [apply H0|intro|intro].
+  + rewrite satisfy_land in H2; destruct H2.
+    rewrite satisfy_equals in H2,H3.
+    eapply satisfy_sand_intro.
+    * apply H1.
+    * unfold pointstodash.
+      apply satisfy_lexists_intro with (n := z0).
+      assert (fresh (x :: nil) <> x). {
+        pose proof (fresh_notIn (x :: nil)).
+        intro. rewrite H5 in H4.
+        apply H4. left; auto. }
+      unfold pointsto.
+      rewrite satisfy_land; split.
+      **  rewrite satisfy_hasval.
+          simpl.
+          rewrite store_update_lookup_diff; auto.
+          rewrite heap_update_spec1.
+          rewrite store_update_lookup_same.
+          reflexivity.
+      **  rewrite satisfy_lforall; intro.
+          rewrite store_update_collapse.
+          rewrite satisfy_limp; intro.
+          rewrite satisfy_hasvaldash in H5.
+          simpl in H5.
+          rewrite store_update_lookup_same in H5.
+          rewrite satisfy_equals.
+          simpl.
+          rewrite store_update_lookup_same.
+          rewrite store_update_lookup_diff; auto.
+          destruct (Z.eq_dec v (s x)); auto.
+          rewrite heap_update_dom2 in H5; auto.
+          rewrite dom_spec in H5.
+          rewrite heap_empty_spec in H5.
+          exfalso; apply H5; auto.
+    * rewrite satisfy_simp; intros.
+      rewrite satisfy_hasval.
+      rewrite H2.
+      rewrite H3.
+      simpl.
+      unfold pointsto in H5.
+      rewrite satisfy_land in H5; destruct H5.
+      rewrite satisfy_hasval in H5.
+      erewrite Partition_spec2; [|apply H4|].
+      auto.
+      rewrite dom_spec; simpl in H5; rewrite H5.
+      intro. inversion H7.
+  + rewrite satisfy_land in H2; destruct H2.
+    rewrite satisfy_lnot in H2.
+    rewrite satisfy_equals in H2.
+    rewrite satisfy_hasval in H3.
+    eapply satisfy_sand_intro.
+    * apply H1.
+    * unfold pointstodash.
+      apply satisfy_lexists_intro with (n := z0).
+      assert (fresh (x :: nil) <> x). {
+        pose proof (fresh_notIn (x :: nil)).
+        intro. rewrite H5 in H4.
+        apply H4. left; auto. }
+      unfold pointsto.
+      rewrite satisfy_land; split.
+      **  rewrite satisfy_hasval.
+          simpl.
+          rewrite store_update_lookup_diff; auto.
+          rewrite heap_update_spec1.
+          rewrite store_update_lookup_same.
+          reflexivity.
+      **  rewrite satisfy_lforall; intro.
+          rewrite store_update_collapse.
+          rewrite satisfy_limp; intro.
+          rewrite satisfy_hasvaldash in H5.
+          simpl in H5.
+          rewrite store_update_lookup_same in H5.
+          rewrite satisfy_equals.
+          simpl.
+          rewrite store_update_lookup_same.
+          rewrite store_update_lookup_diff; auto.
+          destruct (Z.eq_dec v (s x)); auto.
+          rewrite heap_update_dom2 in H5; auto.
+          rewrite dom_spec in H5.
+          rewrite heap_empty_spec in H5.
+          exfalso; apply H5; auto.
+    * rewrite satisfy_simp; intros.
+      rewrite satisfy_hasval.
+      assert (hfun x0 (y s) = z s). {
+        erewrite <- Partition_spec2.
+        apply H3. apply H1.
+        pose proof (Partition_dom_split h _ _ (y s) H1).
+        destruct H6.
+        rewrite dom_spec; rewrite H3; intro; inversion H6.
+        exfalso. rewrite heap_update_dom2 in H6.
+        rewrite dom_spec in H6; rewrite heap_empty_spec in H6; apply H6; auto.
+        auto. auto. }
+      erewrite Partition_spec1; [|apply H4|].
+      auto.
+      rewrite dom_spec; auto.
+      intro. rewrite H6 in H7. inversion H7.
+- unfold f2 in H.
+  eapply satisfy_sand_elim.
+  apply H.
+  clear H. intros.
+  unfold pointstodash in H0.
+  rewrite satisfy_simp in H1.
+  unfold f1.
+  rewrite satisfy_land; split.
+  + eapply satisfy_lexists_elim.
+    apply H0. clear H0. intros.
+    rewrite satisfy_hasvaldash.
+    unfold pointsto in H0.
+    rewrite satisfy_land in H0; destruct H0.
+    rewrite satisfy_hasval in H0.
+    rewrite dom_spec.
+    simpl in H0.
+    rewrite store_update_lookup_same in H0.
+    rewrite store_update_lookup_diff in H0.
+    simpl.
+    erewrite Partition_spec1; [|apply H|].
+    rewrite H0. intro; inversion H3.
+    rewrite dom_spec; intro. rewrite H0 in H3; inversion H3.
+    pose proof (fresh_notIn (x :: nil)).
+    intro. rewrite H4 in H3.
+    apply H3. left; auto.
+  + (* h1 is a singleton heap assigning x some value *)
+    
+    (* pose proof (Partition_intro1 h2 (heap_update heap_empty (s x) z)). *)
+    
+    destruct (Z.eq_dec (s x) (s y)).
+    * apply satisfy_lor_intro1.
+      rewrite satisfy_land; split.
+      rewrite satisfy_equals; auto.
+      rewrite satisfy_equals; simpl.
+      admit.
+    * apply satisfy_lor_intro2.
+      rewrite satisfy_land; split.
+      rewrite satisfy_lnot.
+      rewrite satisfy_equals. auto.
+      rewrite satisfy_hasval.
+      admit.
+Qed.
