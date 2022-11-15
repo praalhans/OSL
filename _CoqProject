@@ -1,6 +1,12 @@
 -Q src OnSeparationLogic
+-Q proof SeparationLogicProofSystem
 src/Util.v
 src/Heap.v
 src/Language.v
 src/Classical.v
 src/Intuitionistic.v
+proof/Model.v
+proof/Syntax.v
+proof/Semantics.v
+proof/System.v
+proof/Soundness.v
