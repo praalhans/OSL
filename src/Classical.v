@@ -2331,19 +2331,74 @@ rewrite satisfy_land; split; rewrite satisfy_limp; intro.
     intro. rewrite H4 in H3.
     apply H3. left; auto.
   + (* h1 is a singleton heap assigning x some value *)
-    
-    (* pose proof (Partition_intro1 h2 (heap_update heap_empty (s x) z)). *)
-    
+    pose proof (Partition_intro1 h2 (heap_update heap_empty (s x) 0%Z)).
+    destruct H2. {
+      intros; intro; destruct H2.
+      destruct (Z.eq_dec (s x) k).
+      rewrite <- e in H2.
+      pose proof (Partition_spec4 _ _ _ H (s x)).
+      apply H4; split; auto.
+      cut (dom h1 (x s)).
+      intro. simpl in H5; auto.
+      rewrite <- satisfy_hasvaldash.
+      eapply satisfy_lexists_elim.
+      apply H0.
+      intros.
+      unfold pointsto in H5.
+      rewrite satisfy_land in H5; destruct H5.
+      unfold hasvaldash.
+      eapply satisfy_lexists_intro.
+      apply H5.
+      rewrite heap_update_dom2 in H3; auto.
+    }
+    assert (satisfy (heap_update heap_empty (s x) 0) s (pointsto x 0%Z)). {
+      unfold pointsto.
+      rewrite satisfy_land; split.
+      simpl; split.
+      apply heap_update_dom1.
+      rewrite heap_update_spec1; auto.
+      rewrite satisfy_lforall; intro.
+      rewrite satisfy_limp; intro.
+      rewrite satisfy_hasvaldash in H3.
+      simpl in H3.
+      rewrite store_update_lookup_same in H3.
+      rewrite satisfy_equals; simpl.
+      rewrite store_update_lookup_same.
+      rewrite store_update_lookup_diff.
+      destruct (Z.eq_dec v (s x)); auto.
+      rewrite heap_update_dom2 in H3; auto.
+      rewrite dom_spec in H3.
+      rewrite heap_empty_spec in H3.
+      exfalso; apply H3; auto.
+      intro.
+      apply fresh_notIn with (xs := x :: nil).
+      rewrite H4. left; auto.
+    }
+    apply H1 with (h'' := x0) in H3; auto.
+    rewrite satisfy_hasval in H3; simpl in H3.
     destruct (Z.eq_dec (s x) (s y)).
     * apply satisfy_lor_intro1.
       rewrite satisfy_land; split.
       rewrite satisfy_equals; auto.
       rewrite satisfy_equals; simpl.
-      admit.
+      rewrite <- e in H3.
+      rewrite Partition_spec2 with (h1 := h2) (h2 := heap_update heap_empty (s x) 0%Z) in H3; auto.
+      rewrite heap_update_spec1 in H3. inversion H3; auto.
+      apply heap_update_dom1.
     * apply satisfy_lor_intro2.
       rewrite satisfy_land; split.
       rewrite satisfy_lnot.
       rewrite satisfy_equals. auto.
       rewrite satisfy_hasval.
-      admit.
+      assert (dom h2 (y s)). {
+        pose proof (Partition_dom_split _ _ _ (s y) H2).
+        destruct H4; auto.
+        rewrite dom_spec. rewrite H3; intro. inversion H4.
+        rewrite heap_update_dom2 in H4; auto.
+        exfalso; auto.
+      }
+      rewrite Partition_spec2 with (h1 := h1) (h2 := h2); auto.
+      rewrite <- Partition_spec1 with (h := x0) (h2 := heap_update heap_empty (s x) 0%Z); auto.
 Qed.
+
+End Example.
