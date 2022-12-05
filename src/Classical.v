@@ -61,11 +61,6 @@ induction p; intros h s; simpl.
   apply H2. eapply H3. apply H0. apply H1.
 Qed.
 
-(* emp <-> dom h = Empty_set Z *)
-
-(* poitnsto <-> dom h = Singleton Z (eval e s) /\
-      h (eval e s) = eval e' s *)
-
 Proposition satisfy_land (h: heap) (s: store) (p q: assert):
   satisfy h s (land p q) <-> satisfy h s p /\ satisfy h s q.
 simpl; split; intro; auto.
@@ -228,6 +223,70 @@ intros.
 eapply H. apply H0. apply H1.
 simpl. intros. eapply H.
 apply H0. apply H1.
+Qed.
+
+Proposition satisfy_emp (h: heap) (s: store):
+  satisfy h s emp <-> forall x, ~ dom h x.
+unfold emp; split; intros.
+- rewrite satisfy_lforall in H.
+  specialize (H x).
+  rewrite satisfy_lnot_hasvaldash in H.
+  rewrite store_update_lookup_same in H.
+  assumption.
+- rewrite satisfy_lforall; intros.
+  rewrite satisfy_lnot_hasvaldash.
+  rewrite store_update_lookup_same.
+  apply H.
+Qed.
+
+(* poitnsto <-> dom h = Singleton Z (eval e s) /\
+      h (eval e s) = eval e' s *)
+
+(* ============ *)
+(* BOX MODALITY *)
+(* ============ *)
+
+Definition box (p: assert) :=
+  (sand true (land emp (simp true p))).
+
+Proposition satisfy_box (h: heap) (s: store) (p: assert):
+  satisfy h s (box p) <-> forall h', satisfy h' s p.
+split; intros.
+- unfold box in H.
+  eapply satisfy_sand_elim.
+  apply H.
+  intros.
+  rewrite satisfy_land in H2; destruct H2.
+  rewrite satisfy_emp in H2.
+  rewrite satisfy_simp in H3.
+  specialize H3 with h' h'.
+  apply H3. clear H3.
+  pose proof (Partition_intro1 h2 h').
+  destruct H3.
+  intros. intro. destruct H3. eapply H2. apply H3.
+  assert (x = h'). {
+    apply heap_ext; intro.
+    destruct (dom_dec h' n).
+    erewrite Partition_spec2; [reflexivity|apply H3|assumption].
+    destruct (dom_dec h2 n).
+    exfalso. eapply H2. apply H5.
+    erewrite Partition_spec3; [|apply H3|assumption|assumption].
+    rewrite dom_spec in H4.
+    destruct (h' n); auto.
+    exfalso. apply H4. intro. inversion H6.
+  }
+  rewrite H4 in H3. assumption.
+  simpl; reflexivity.
+- unfold box.
+  apply satisfy_sand_intro with (h1 := h) (h2 := heap_empty).
+  apply Partition_empty.
+  simpl; auto.
+  rewrite satisfy_land. split.
+  apply satisfy_emp.
+  intros. rewrite dom_spec. rewrite heap_empty_spec. auto.
+  rewrite satisfy_simp.
+  intros.
+  apply H.
 Qed.
 
 (* =================================== *)

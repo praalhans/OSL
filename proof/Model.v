@@ -1,6 +1,5 @@
 Require Export FunctionalExtensionality.
 Require Export PropExtensionality.
-Require Export Classical.
 Require Export PeanoNat.
 
 Require Coq.Lists.List.

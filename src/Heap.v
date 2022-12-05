@@ -204,6 +204,28 @@ pose proof (dom_dec h1 n); destruct H1;
   reflexivity.
 Qed.
 
+Proposition Partition_empty (h: heap):
+  Partition h h heap_empty.
+pose proof (Partition_intro1 h heap_empty).
+destruct H.
+intros; intro. destruct H.
+pose proof heap_empty_spec.
+rewrite dom_spec in H0.
+rewrite H1 in H0. apply H0. reflexivity.
+assert (x = h). {
+apply heap_ext; intro.
+destruct (dom_dec h n).
+erewrite Partition_spec1; [reflexivity|apply H|assumption].
+destruct (dom_dec heap_empty n).
+exfalso. rewrite dom_spec in H1.
+rewrite heap_empty_spec in H1. apply H1; reflexivity.
+erewrite Partition_spec3; [|apply H|assumption|assumption].
+rewrite dom_spec in H0. destruct (h n). exfalso.
+apply H0. intro. inversion H2. reflexivity.
+}
+rewrite H0 in H. assumption.
+Qed.
+
 Proposition Partition_dom_split (h h1 h2: heap) (x: Z):
   Partition h h1 h2 -> dom h x -> dom h1 x \/ dom h2 x.
 intros.
