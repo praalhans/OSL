@@ -20,14 +20,14 @@ Inductive countable (T: Set) :=
 | is_infinite: denumerable T -> countable T.
 
 Record signature: Type := mksignature
-{ Fun: Set
-; Fcountable: countable Fun
-; arity: Fun -> nat
+{ Func: Set
+; Fcountable: countable Func
+; arity: Func -> nat
 ; Pred: Set
 ; Pcountable: countable Pred
 ; adic: Pred -> nat
-; Rel: Set
-; Renumerable: denumerable Rel }.
+; Bin: Set
+; Benumerable: denumerable Bin }.
 Arguments arity {_} _.
 Arguments adic {_} _.
 
@@ -37,7 +37,7 @@ Definition dummy2: V := 1.
 
 Inductive term (Sigma: signature): Set :=
 | id: V -> term Sigma
-| app (f: Fun Sigma): Vector.t (term Sigma) (arity f) -> term Sigma.
+| app (f: Func Sigma): Vector.t (term Sigma) (arity f) -> term Sigma.
 Arguments app {_} _ _.
 
 Fixpoint freevartl {Sigma: signature} (t: term Sigma): list V :=
@@ -53,7 +53,7 @@ fun x => List.In x (freevartl t).
 Inductive formula (Sigma: signature): Set :=
 | bot: formula Sigma
 | eq: term Sigma -> term Sigma -> formula Sigma
-| prim2 (r: Rel Sigma): term Sigma -> term Sigma -> formula Sigma
+| prim2 (r: Bin Sigma): term Sigma -> term Sigma -> formula Sigma
 | primn (p: Pred Sigma): Vector.t (term Sigma) (adic p) -> formula Sigma
 | limp: formula Sigma -> formula Sigma -> formula Sigma
 | lforall: V -> formula Sigma -> formula Sigma.
@@ -87,48 +87,48 @@ Record binformula (Sigma: signature) :=
 }.
 Coercion binformula_form: binformula >-> formula.
 
-Record structure (Sigma: signature): Type := mkstructure
+Record model (Sigma: signature): Type := mkstructure
 { domain: Set
 ; element: domain
-; func (f: Fun Sigma): Vector.t domain (arity f) -> domain
-; rel  (r: Rel Sigma): domain -> domain -> Prop
+; func (f: Func Sigma): Vector.t domain (arity f) -> domain
+; bin (r: Bin Sigma): domain -> domain -> Prop
 ; pred (p: Pred Sigma): Vector.t domain (adic p) -> Prop
 }.
-Coercion domain: structure >-> Sortclass.
+Coercion domain: model >-> Sortclass.
 Arguments domain {_} _.
 Arguments element {_} _.
 Arguments func {_} {_} _ _.
-Arguments rel  {_} {_} _ _.
+Arguments bin {_} {_} _ _.
 Arguments pred {_} {_} _ _.
 
-Definition valuation {Sigma: signature} (M: structure Sigma) := V -> M.
+Definition valuation {Sigma: signature} (M: model Sigma) := V -> M.
 
-Definition defval {Sigma: signature} (M: structure Sigma): valuation M :=
+Definition defval {Sigma: signature} (M: model Sigma): valuation M :=
 fun x => element M.
 
-Definition update {Sigma: signature} {M: structure Sigma}
+Definition update {Sigma: signature} {M: model Sigma}
   (s: valuation M) (x: V) (d: M): valuation M :=
 fun y => if Nat.eq_dec x y then d else s y.
 
-Fixpoint interp {Sigma: signature} {M: structure Sigma}
+Fixpoint interp {Sigma: signature} {M: model Sigma}
   (s: valuation M) (t: term Sigma): M :=
 match t with
 | id _ x => s x
 | app f arg => func f (Vector.map (interp s) arg)
 end.
 
-Fixpoint satisfy {Sigma: signature} {M: structure Sigma}
+Fixpoint satisfy {Sigma: signature} {M: model Sigma}
   (s: valuation M) (phi: formula Sigma): Prop :=
 match phi with
 | bot _ => False
 | eq t1 t2 => interp s t1 = interp s t2
-| prim2 r t1 t2 => rel r (interp s t1) (interp s t2)
+| prim2 r t1 t2 => bin r (interp s t1) (interp s t2)
 | primn p arg => pred p (Vector.map (interp s) arg)
 | limp phi psi => satisfy s phi -> satisfy s psi
 | lforall x phi => forall (d: domain M), satisfy (update s x d) phi
 end.
 
-Record defrel {Sigma: signature} (M: structure Sigma) (phi: binformula Sigma) :=
+Record defrel {Sigma: signature} (M: model Sigma) (phi: binformula Sigma) :=
 { defrel_rel: M -> M -> Prop
 ; defrel_prop: forall d d', defrel_rel d d' <->
     satisfy (update (update (defval M) dummy1 d) dummy2 d') phi
