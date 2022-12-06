@@ -1563,7 +1563,9 @@ induction p; intros.
       remember (h' (s x)); destruct o.
       2: exfalso; apply H7; auto.
       assert (x <> y).
-      { admit. }
+      { intro.
+        apply fresh_notIn with (xs := (x :: aoccur p1 ++ aoccur p2)).
+        rewrite <- Heqy. rewrite <- H8. left. reflexivity. }
       rewrite acond with (t := store_update s y z) in H6.
       pose proof (iheap_update_substitution_lemma (heap_clear h' (s x)) (store_update s y z) p1 x y x1 H1).
       specialize H4 with z.
@@ -1582,7 +1584,16 @@ induction p; intros.
       erewrite <- cheap_clear_substitution_lemma_p3 in H6; [|apply H5|apply H7|auto].
       rewrite <- acond with (s := s) (t := store_update s y z) in H6.
       assumption.
-      admit. admit.
+      { intro. intro. destruct (Nat.eq_dec x4 y).
+        exfalso. rewrite e in H9. rewrite Heqy in H9.
+        pose proof (fresh_notInGeneral). eapply H10; [|apply H9].
+        intros. right. apply in_or_app. right. unfold aoccur. apply in_or_app. auto.
+        rewrite store_update_lookup_diff; auto. }
+      { intro. intro. destruct (Nat.eq_dec x3 y).
+        exfalso. rewrite e in H9. rewrite Heqy in H9.
+        pose proof (fresh_notInGeneral). eapply H10; [|apply H9].
+        intros. right. apply in_or_app. left. unfold aoccur. apply in_or_app. auto.
+        rewrite store_update_lookup_diff; auto. }
     * assert (forall k : Z, ~ (dom h k /\ dom h' k)).
       { admit. }
       pose proof (Partition_intro1 h h' H8); destruct H9.
@@ -2175,4 +2186,4 @@ End Intuitionistic.
 
 Module IntuitionisticIHeap := Intuitionistic IHeap.
 Import IntuitionisticIHeap.
-Print Assumptions WPISL_soundness_completeness.
+Print Assumptions result.
