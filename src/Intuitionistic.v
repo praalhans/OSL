@@ -1595,7 +1595,11 @@ induction p; intros.
         intros. right. apply in_or_app. left. unfold aoccur. apply in_or_app. auto.
         rewrite store_update_lookup_diff; auto. }
     * assert (forall k : Z, ~ (dom h k /\ dom h' k)).
-      { admit. }
+      { intro. intro. destruct (Z.eq_dec (s x) k).
+        destruct H8. rewrite <- e in H9. apply H7. assumption.
+        destruct H8. pose proof (Partition_spec4 _ _ _ H5 k).
+        apply H10. split; auto. rewrite dom_spec.
+        rewrite heap_clear_spec2; auto. rewrite <- dom_spec. assumption. }
       pose proof (Partition_intro1 h h' H8); destruct H9.
       apply H3 with (h'' := x3) in H6; auto.
       rewrite IHp2 in H6; auto.
@@ -1607,11 +1611,21 @@ induction p; intros.
     rewrite satisfy_land; split.
     * rewrite satisfy_simp; intros.
       assert (forall k : Z, ~(dom (heap_clear h (s x)) k /\ dom h' k)).
-      { admit. }
+      { intro. intro. destruct H6. destruct (Z.eq_dec (s x) k).
+        rewrite <- e in H6.
+        eapply heap_clear_dom1. apply H6.
+        rewrite heap_clear_dom2 in H6; auto.
+        pose proof (Partition_spec4 _ _ _ H4).
+        eapply H8. split. apply H6. apply H7. }
       pose proof (Partition_intro1 _ _ H6); clear H6; destruct H7.
-      apply H3 in H6; auto.
       assert (heap_clear h'' (s x) = x3).
-      { admit. }
+      { pose proof (Partition_heap_clear h'' h' h (s x)).
+        apply Partition_comm in H4.
+        apply Partition_comm in H6.
+        apply H7 in H4; auto; clear H7.
+        eapply Partition_lunique. split.
+        apply H4. apply H6. }
+      apply H3 in H6; auto.
       rewrite <- H7 in H6.
       apply <- IHp2 in H6.
       apply H6. assumption.
@@ -1621,13 +1635,22 @@ induction p; intros.
       remember (store_update s y v) as s'.
       rewrite iheap_update_substitution_lemma in H5; [|apply H1].
       assert (x <> y).
-      { admit. }
+      { intro. rewrite <- H6 in Heqy.
+        pose proof (fresh_notIn (x :: aoccur p1 ++ aoccur p2)).
+        apply H7. left. assumption. }
       simpl in H5. rewrite Heqs' in H5.
       rewrite store_update_lookup_same in H5.
       rewrite store_update_lookup_diff in H5; auto.
       rewrite acond with (t := s) in H5.
       assert (forall k : Z, ~(dom (heap_clear h (s x)) k /\ dom (heap_update h' (s x) v) k)).
-      { admit. }
+      { intro. intro. destruct H7.
+        destruct (Z.eq_dec k (s x)).
+        rewrite e in H7.
+        eapply heap_clear_dom1. apply H7.
+        rewrite heap_clear_dom2 in H7; auto.
+        rewrite heap_update_dom2 in H8; auto.
+        pose proof (Partition_spec4 _ _ _ H4).
+        eapply H9. split. apply H7. apply H8. }
       pose proof (Partition_intro1 _ _ H7); clear H7; destruct H8.
       apply H3 with (h'' := x3) in H5; auto.
       rewrite <- acond with (s := store_update s y v) in H5.
@@ -1636,11 +1659,41 @@ induction p; intros.
       rewrite store_update_lookup_same.
       rewrite store_update_lookup_diff; auto.
       assert (heap_update h'' (s x) v = x3).
-      { admit. }
+      { apply heap_ext; intro.
+        destruct (Z.eq_dec n (s x)).
+        rewrite e. rewrite heap_update_spec1.
+        erewrite Partition_spec2; [|apply H7|].
+        rewrite heap_update_spec1; auto.
+        apply heap_update_dom1; auto.
+        rewrite heap_update_spec2; auto.
+        destruct (dom_dec h n).
+        erewrite Partition_spec1; [|apply H4|auto].
+        erewrite (Partition_spec1 x3); [|apply H7|].
+        rewrite heap_clear_spec2; auto.
+        apply heap_clear_dom2; auto.
+        destruct (dom_dec h' n).
+        erewrite Partition_spec2; [|apply H4|auto].
+        erewrite (Partition_spec2 x3); [|apply H7|].
+        rewrite heap_update_spec2; auto.
+        apply heap_update_dom2; auto.
+        erewrite Partition_spec3; [|apply H4|auto|auto].
+        erewrite (Partition_spec3 x3); [auto|apply H7| |].
+        rewrite heap_clear_dom2; auto.
+        rewrite heap_update_dom2; auto. }
       rewrite H8; auto.
-      admit.
-      admit.
-Admitted.
+      intro; intro.
+      assert (x4 <> y). { intro.
+        pose proof (fresh_notInGeneral (avar p2) (x :: aoccur p1 ++ aoccur p2)).
+        apply H10; intros. right. apply in_or_app. right. apply in_or_app. auto.
+        rewrite <- Heqy. rewrite <- H9. assumption. }
+      rewrite store_update_lookup_diff; auto.
+      intro; intro.
+      assert (x3 <> y). { intro.
+        pose proof (fresh_notInGeneral (avar p1) (x :: aoccur p1 ++ aoccur p2)).
+        apply H9; intros. right. apply in_or_app. left. apply in_or_app. auto.
+        rewrite <- Heqy. rewrite <- H8. assumption. }
+      rewrite store_update_lookup_diff; auto.
+Qed.
 
 (* ========================== *)
 (* SOUNDNESS CONSEQUENCE RULE *)
