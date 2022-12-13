@@ -1334,7 +1334,25 @@ Proposition cheap_clear_substitution_lemma_p1 (h h' h'' h0: heap) (k: Z):
   Partition h'' (heap_clear h k) h' ->
   ~ dom h' k -> Partition h0 h h' ->
   h'' = heap_clear h0 k.
-Admitted.
+intros.
+apply heap_ext; intro.
+destruct (Z.eq_dec n k).
+- rewrite e.
+  erewrite Partition_spec3; [|apply H| |auto].
+  rewrite heap_clear_spec1; auto.
+  apply heap_clear_dom1.
+- rewrite heap_clear_spec2; auto.
+  destruct (dom_dec h n).
+  { erewrite Partition_spec1; [|apply H|apply heap_clear_dom2; auto].
+    erewrite (Partition_spec1 h0); [|apply H1|auto].
+    rewrite heap_clear_spec2; auto. }
+  destruct (dom_dec h' n).
+  { erewrite Partition_spec2; [|apply H|auto].
+    erewrite (Partition_spec2 h0); [|apply H1|]; auto. }
+  erewrite Partition_spec3; [|apply H| |auto].
+  erewrite (Partition_spec3 h0); [auto|apply H1|auto|auto].
+  rewrite heap_clear_dom2; auto.
+Qed.
 
 Proposition cheap_clear_substitution_lemma_p2 (h h' h'': heap) (k: Z):
   Partition h'' (heap_clear h k) h' -> dom h' k ->
@@ -1354,7 +1372,30 @@ Proposition cheap_clear_substitution_lemma_p3 (h h' h'' h0: heap) (k v: Z):
   Partition h0 h (heap_clear h' k) ->
   h' k = Some v ->
   h'' = heap_update h0 k v.
-Admitted.
+intros.
+apply heap_ext; intro.
+destruct (Z.eq_dec n k).
+- rewrite e.
+  rewrite heap_update_spec1.
+  erewrite Partition_spec2.
+  apply H1.
+  apply H.
+  rewrite dom_spec. rewrite H1. intro. inversion H2.
+- rewrite heap_update_spec2; auto.
+  destruct (dom_dec h n).
+  { erewrite Partition_spec1; [|apply H|].
+    erewrite (Partition_spec1 h0); [|apply H0|auto].
+    rewrite heap_clear_spec2; auto.
+    rewrite heap_clear_dom2; auto. }
+  destruct (dom_dec h' n).
+  { erewrite Partition_spec2; [|apply H|auto].
+    erewrite (Partition_spec2 h0); [|apply H0|auto].
+    rewrite heap_clear_spec2; auto.
+    rewrite heap_clear_dom2; auto. }
+  erewrite Partition_spec3; [|apply H| |auto].
+  erewrite (Partition_spec3 h0); [auto|apply H0|auto|].
+  1,2: rewrite heap_clear_dom2; auto.
+Qed.
 
 Lemma cheap_clear_substitution_lemma (h: heap) (s: store) (p: assert) (x: V):
   dom h (s x) ->
