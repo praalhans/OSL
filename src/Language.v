@@ -1262,9 +1262,9 @@ try (apply asub_cheap_clear_defined_step2; assumption; fail).
     apply H3; auto. apply H4; auto.
 Qed.
 
-(* =============================== *)
-(* BASIC INSTRUCTIONS AND PROGRAMS *)
-(* =============================== *)
+(* ===================================== *)
+(* BASIC INSTRUCTIONS AND WHILE PROGRAMS *)
+(* ===================================== *)
 
 Variant assignment :=
 | basic: V -> expr -> assignment
@@ -1275,7 +1275,10 @@ Variant assignment :=
 
 Inductive program :=
 | assign: assignment -> program.
-(* | comp: program -> program -> program. *)
+(*| skip: program
+| comp: program -> program -> program
+| ite: guard -> program -> program -> program
+| while: guard -> program -> program.*)
 Coercion assign: assignment >-> program.
 
 (* ================================================ *)
@@ -1307,7 +1310,9 @@ Inductive bigstep: program -> heap * store -> option (heap * store) -> Prop :=
 | step_dispose_fail (x: V) (h: heap) (s: store):
     ~dom h (s x) ->
     bigstep (dispose x) (h, s) None.
-(*| step_comp (S1 S2: program) (h h' h'': heap) (s s' s'': store):
+(*| step_skip (h: heap) (s: store):
+    bigstep skip (h, s) (Some (h, s))
+| step_comp (S1 S2: program) (h h' h'': heap) (s s' s'': store):
     bigstep S1 (h, s) (Some (h', s')) ->
     bigstep S2 (h', s') (Some (h'', s'')) ->
     bigstep (comp S1 S2) (h, s) (Some (h'', s''))
@@ -1317,7 +1322,18 @@ Inductive bigstep: program -> heap * store -> option (heap * store) -> Prop :=
 | step_comp_fail2 (S1 S2: program) (h h': heap) (s s': store):
     bigstep S1 (h, s) (Some (h', s')) ->
     bigstep S2 (h', s') None ->
-    bigstep (comp S1 S2) (h, s) None.*)
+    bigstep (comp S1 S2) (h, s) None
+| step_ite_true (g: guard) (S1 S2: program) (h: heap) (s: store) o:
+    g s = true ->
+    bigstep S1 (h, s) o ->
+    bigstep (ite g S1 S2) (h, s) o
+| step_ite_false (g: guard) (S1 S2: program) (h: heap) (s: store) o:
+    g s = false ->
+    bigstep S2 (h, s) o ->
+    bigstep (ite g S1 S2) (h, s) o
+| step_while (g: guard) (S1: program) (h: heap) (s: store) o:
+    bigstep (ite g (comp S1 (while g S1)) skip) (h, s) o ->
+    bigstep (while g S1) (h, s) o.*)
 
 (* ============= *)
 (* HOARE TRIPLES *)
