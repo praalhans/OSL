@@ -2079,7 +2079,44 @@ Corollary SPISL_soundness_basic (p: assert) (x y: V) (e: expr):
   ~ In y (x :: aoccur p ++ evar e) ->
   forall ps, asub p x y = Some ps ->
   strong_partial_correct (mkhoare p (basic x e) (lexists y (land ps (equals (esub e x y) x)))).
-Admitted.
+intros; intro; intros. split.
+intro. inversion H2. intros.
+assert (x <> y).
+{ intro. rewrite <- H3 in H. apply H. left; auto. }
+inversion H2. rewrite <- H9.
+rewrite satisfy_lexists.
+exists (s x).
+rewrite satisfy_land; split.
+- rewrite store_update_swap; auto.
+  rewrite store_substitution_lemma; [|apply H0].
+  simpl.
+  rewrite store_update_collapse.
+  rewrite store_update_lookup_diff; auto.
+  rewrite store_update_lookup_same.
+  assert (store_update s y (s x) x = s x).
+  { rewrite store_update_lookup_diff; auto. }
+  rewrite <- H4 at 2.
+  rewrite store_update_id.
+  eapply acond; [|apply H1].
+  intro. intro.
+  destruct (Nat.eq_dec x1 y).
+  exfalso. rewrite e1 in H11.
+  apply H. right. apply in_or_app. left. apply in_or_app. auto.
+  rewrite store_update_lookup_diff; auto.
+- rewrite store_update_swap; auto.
+  rewrite satisfy_equals; simpl.
+  rewrite store_update_collapse; simpl.
+  rewrite store_update_lookup_diff; auto.
+  rewrite store_update_lookup_same.
+  rewrite store_update_lookup_same.
+  rewrite store_update_swap; auto.
+  rewrite store_update_id.
+  eapply econd; intro; intro.
+  destruct (Nat.eq_dec x1 y).
+  exfalso. rewrite e1 in H4.
+  apply H. right. apply in_or_app. auto.
+  rewrite store_update_lookup_diff; auto.
+Qed.
 
 Corollary SPISL_soundness_lookup (p: assert) (x y: V) (e: expr):
   ~ In y (x :: aoccur p ++ evar e) ->
