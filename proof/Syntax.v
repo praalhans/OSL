@@ -1,1 +1,2 @@
-Require Export SeparationLogicProofSystem.Model.
+(* SCRATCH FILE, TRYING OUT A NEW APPROACH *)
+
