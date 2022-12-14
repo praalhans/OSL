@@ -2213,7 +2213,45 @@ Corollary SPISL_soundness_new (p: assert) (x y: V) (e: expr):
   forall ps, asub p x y = Some ps ->
   forall pss, asub_cheap_clear (lexists y ps) x = Some pss ->
   strong_partial_correct (mkhoare p (new x e) (land pss (hasval x e))).
-Admitted.
+intros; intro; intros.
+split. intro. inversion H4.
+intros.
+inversion H4. rewrite <- H11 in *. rewrite <- H10 in *.
+clear dependent h'. clear dependent s'.
+clear dependent s0. clear dependent h0.
+clear dependent e0. clear dependent x0.
+assert (x <> y).
+{ intro. rewrite <- H5 in H0. apply H0. left; auto. }
+rewrite satisfy_land; split.
+- rewrite cheap_clear_substitution_lemma;
+  [|rewrite store_update_lookup_same; apply heap_update_dom1|apply H2].
+  rewrite store_update_lookup_same.
+  rewrite heap_update_clear_collapse; auto.
+  rewrite satisfy_lexists.
+  exists (s x).
+  rewrite store_substitution_lemma; [| apply H1].
+  simpl.
+  rewrite store_update_lookup_same.
+  rewrite store_update_swap; auto.
+  rewrite store_update_collapse.
+  rewrite store_update_id.
+  eapply acond; [|apply H3].
+  intro. intro.
+  destruct (Nat.eq_dec x0 y).
+  exfalso. rewrite e0 in H7.
+  apply H0. right. apply in_or_app. left. apply in_or_app. auto.
+  rewrite store_update_lookup_diff; auto.
+- rewrite satisfy_hasval. simpl.
+  rewrite store_update_lookup_same.
+  rewrite heap_update_spec1.
+  pose proof (econd e s (store_update s x n)).
+  rewrite <- H7. reflexivity. clear H7.
+  intro. intro.
+  destruct (Nat.eq_dec x0 x).
+  exfalso. rewrite e0 in H7.
+  apply H. assumption.
+  rewrite store_update_lookup_diff; auto.
+Qed.
 
 Corollary SPISL_soundness_dispose (p: assert) (x y: V):
   ~ In y (x :: aoccur p) ->
