@@ -2257,7 +2257,40 @@ Corollary SPISL_soundness_dispose (p: assert) (x y: V):
   ~ In y (x :: aoccur p) ->
   forall ps, asub_cheap_update p x y = Some ps ->
   strong_partial_correct (mkhoare (land p (hasvaldash x)) (dispose x) (limp (hasvaldash x) (lexists y ps))).
-Admitted.
+intros; intro; intros.
+rewrite satisfy_land in H1; destruct H1.
+rewrite satisfy_hasvaldash in H2.
+split. intro. inversion H3.
+apply H6; auto.
+intros.
+inversion H3. rewrite <- H9 in *. rewrite <- H8 in *.
+clear dependent h'. clear dependent s'.
+clear dependent s0. clear dependent h0.
+clear dependent x0. clear H6.
+assert (x <> y).
+{ intro. rewrite <- H4 in H. apply H. left; auto. }
+rewrite satisfy_limp; intros.
+rewrite satisfy_hasvaldash in H6.
+rewrite satisfy_lexists.
+simpl in H2, H6.
+rewrite dom_spec in H2.
+remember (h (s x)); destruct o.
+2: exfalso; apply H2; auto.
+exists z.
+rewrite cheap_update_substitution_lemma; [| |apply H0].
+simpl.
+rewrite store_update_lookup_same.
+rewrite store_update_lookup_diff; auto.
+eapply satisfy_monotonic.
+eapply acond; [|apply H1].
+intro. intro.
+destruct (Nat.eq_dec x0 y).
+exfalso. rewrite e in H7. apply H. right. apply in_or_app. auto.
+rewrite store_update_lookup_diff; auto.
+erewrite <- (heap_clear_update_collapse h); [|symmetry; apply Heqo].
+apply Extends_lift_heap_update3; auto.
+rewrite store_update_lookup_diff; auto.
+Qed.
 
 Theorem SPISL_soundness (Gamma: assert -> Prop) (O: forall p, Gamma p -> validity p):
   forall pSq, inhabited (SPISL Gamma pSq) -> strong_partial_correct pSq.
