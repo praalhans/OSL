@@ -2310,7 +2310,41 @@ Corollary SPISL_strongest_basic (p q: assert) (x y: V) (e: expr):
   ~ In y (x :: aoccur p ++ evar e ++ aoccur q) ->
   forall ps, asub p x y = Some ps ->
   validity (limp (lexists y (land ps (equals (esub e x y) x))) q).
-Admitted.
+intros; intro; intros.
+rewrite satisfy_limp; intros.
+rewrite satisfy_lexists in H3; destruct H3.
+rewrite satisfy_land in H3; destruct H3.
+rewrite satisfy_equals in H4; simpl in H4.
+assert (x <> y).
+{ intro. apply H0. rewrite H5. left. auto. }
+rewrite store_update_lookup_same in H4.
+rewrite store_update_lookup_diff in H4; auto.
+pose proof (store_substitution_lemma h' (store_update s y x0) p x y ps H1).
+apply H6 in H3; clear H6.
+simpl in H3.
+rewrite store_update_lookup_same in H3.
+rewrite store_update_swap in H3; auto.
+rewrite store_update_swap in H4; auto.
+rewrite acond with (t := store_update s x x0) in H3.
+rewrite econd with (t := store_update s x x0) in H4.
+unfold strong_partial_correct in H.
+apply H in H3; clear H. destruct H3.
+assert (bigstep (basic x e) (h', store_update s x x0)
+    (Some (h', store_update (store_update s x x0) x (e (store_update s x x0))))) by
+apply step_basic.
+apply H3 in H6; clear H3.
+rewrite H4 in H6.
+rewrite store_update_collapse in H6.
+rewrite store_update_id in H6. assumption.
+{ intro. intro. destruct (Nat.eq_dec x1 y).
+  exfalso. rewrite e0 in H6.
+  apply H0. right. apply in_or_app. right. apply in_or_app; auto.
+  rewrite store_update_lookup_diff; auto. }
+{ intro. intro. destruct (Nat.eq_dec x1 y).
+  exfalso. rewrite e0 in H6.
+  apply H0. right. apply in_or_app. left. apply in_or_app; auto.
+  rewrite store_update_lookup_diff; auto. }
+Qed.
 
 Corollary SPISL_strongest_lookup (p q: assert) (x y: V) (e: expr):
   strong_partial_correct (mkhoare p (lookup x e) q) ->
