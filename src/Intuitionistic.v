@@ -2479,7 +2479,83 @@ Corollary SPISL_strongest_dispose (p q: assert) (x y: V):
   ~ In y (x :: aoccur p ++ aoccur q) ->
   forall ps, asub_cheap_update p x y = Some ps ->
   validity (limp (limp (hasvaldash x) (lexists y ps)) q).
-Admitted.
+intros; intro; intros.
+rewrite satisfy_limp; intros.
+rewrite satisfy_limp in H3.
+assert (x <> y).
+{ intro. apply H0. rewrite H4. left. auto. }
+destruct (dom_dec h' (s x)).
+- specialize H3 with h'.
+  assert (satisfy h' s (lexists y ps)).
+  apply H3.
+  apply Extends_refl.
+  rewrite satisfy_hasvaldash. assumption.
+  clear H3.
+  rewrite satisfy_lexists in H6; destruct H6.
+  rewrite cheap_update_substitution_lemma in H3; [| |apply H1].
+  simpl in H3.
+  rewrite store_update_lookup_same in H3.
+  rewrite store_update_lookup_diff in H3; auto.
+  rewrite acond with (t := s) in H3.
+  unfold strong_partial_correct in H.
+  apply H in H3; clear H. destruct H3.
+  pose proof (step_dispose x (heap_update h' (s x) x0) s).
+  assert (dom (heap_update h' (s x) x0) (s x)).
+  apply heap_update_dom1.
+  apply H6 in H7; clear H6.
+  apply H3 in H7; clear H3.
+  eapply satisfy_monotonic.
+  apply H7.
+  destruct (dom_dec h' (s x)).
+  apply <- Extends_included; intros.
+  destruct (Z.eq_dec n (s x)).
+  exfalso. rewrite e in H6.
+  eapply heap_clear_dom1. apply H6.
+  rewrite heap_clear_spec2; auto.
+  rewrite heap_update_spec2; auto.
+  rewrite heap_update_clear_collapse; auto.
+  apply Extends_refl.
+  intro; intro. destruct (Nat.eq_dec y x1).
+  exfalso. apply H0. rewrite e. right. apply in_or_app. left. apply in_or_app; auto.
+  rewrite store_update_lookup_diff; auto.
+  rewrite store_update_lookup_diff; auto.
+- assert (satisfy (heap_update h' (s x) 0) s (lexists y ps)).
+  apply H3.
+  apply Extends_heap_update; auto.
+  rewrite satisfy_hasvaldash. simpl.
+  apply heap_update_dom1.
+  clear H3.
+  rewrite satisfy_lexists in H6; destruct H6.
+  rewrite cheap_update_substitution_lemma in H3; [| |apply H1].
+  simpl in H3.
+  rewrite store_update_lookup_same in H3.
+  rewrite store_update_lookup_diff in H3; auto.
+  rewrite acond with (t := s) in H3.
+  unfold strong_partial_correct in H.
+  apply H in H3; clear H. destruct H3.
+  pose proof (step_dispose x (heap_update (heap_update h' (s x) 0) (s x) x0) s).
+  assert (dom (heap_update (heap_update h' (s x) 0) (s x) x0) (s x)).
+  apply heap_update_dom1.
+  apply H6 in H7; clear H6.
+  apply H3 in H7; clear H3.
+  eapply satisfy_monotonic.
+  apply H7.
+  rewrite heap_update_collapse.
+  destruct (dom_dec h' (s x)).
+  apply <- Extends_included; intros.
+  destruct (Z.eq_dec n (s x)).
+  exfalso. rewrite e in H6.
+  eapply heap_clear_dom1. apply H6.
+  rewrite heap_clear_spec2; auto.
+  rewrite heap_update_spec2; auto.
+  rewrite heap_update_clear_collapse; auto.
+  apply Extends_refl.
+  intro; intro. destruct (Nat.eq_dec y x1).
+  exfalso. apply H0. rewrite e. right. apply in_or_app. left. apply in_or_app; auto.
+  rewrite store_update_lookup_diff; auto.
+  rewrite store_update_lookup_diff; auto.
+  apply heap_update_dom1.
+Qed.
 
 Theorem SPISL_completeness (Gamma: assert -> Prop) (O: forall p, validity p -> Gamma p):
   forall pSq, restrict_pre pSq -> strong_partial_correct pSq -> inhabited (SPISL Gamma pSq).
