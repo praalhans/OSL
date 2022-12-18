@@ -2437,7 +2437,42 @@ Corollary SPISL_strongest_new (p q: assert) (x y: V) (e: expr):
   forall ps, asub p x y = Some ps ->
   forall pss, asub_cheap_clear (lexists y ps) x = Some pss ->
   validity (limp (land pss (hasval x e)) q).
-Admitted.
+intros; intro; intros.
+rewrite satisfy_limp; intros.
+rewrite satisfy_land in H5; destruct H5.
+rewrite satisfy_hasval in H6.
+pose proof (cheap_clear_substitution_lemma h' s (lexists y ps) x).
+assert (dom h' (s x)).
+rewrite dom_spec; intro. simpl in H6; rewrite H6 in H8. inversion H8.
+apply H7 with (ps0 := pss) in H8; auto; clear H7.
+apply H8 in H5; clear H8.
+rewrite satisfy_lexists in H5; destruct H5.
+rewrite store_substitution_lemma in H5; [|apply H2].
+simpl in H5.
+rewrite store_update_lookup_same in H5.
+assert (x <> y).
+{ intro. apply H1. rewrite H7. left. auto. }
+simpl in H6.
+rewrite store_update_swap in H5; auto.
+rewrite acond with (t := store_update s x x0) in H5.
+unfold strong_partial_correct in H0.
+apply H0 in H5; clear H0; destruct H5.
+pose proof (step_new x e (heap_clear h' (s x)) (store_update s x x0)).
+assert (~ dom (heap_clear h' (s x)) (s x)).
+apply heap_clear_dom1.
+apply H8 in H9; clear H8.
+apply H5 in H9; clear H5.
+rewrite store_update_collapse in H9.
+rewrite store_update_id in H9.
+rewrite econd with (t := s) in H9.
+rewrite heap_clear_update_collapse in H9; auto.
+{ intro; intro. destruct (Nat.eq_dec x x1).
+  exfalso. apply H. rewrite e0. auto.
+  rewrite store_update_lookup_diff; auto. }
+{ intro; intro. destruct (Nat.eq_dec y x1).
+  exfalso. apply H1. rewrite e0. right. apply in_or_app; left. apply in_or_app; auto.
+  rewrite store_update_lookup_diff; auto. }
+Qed.
 
 Corollary SPISL_strongest_dispose (p q: assert) (x y: V):
   strong_partial_correct (mkhoare p (dispose x) q) ->
