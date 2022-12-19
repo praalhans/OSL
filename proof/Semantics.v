@@ -16,3 +16,5 @@ match phi with
     Disjoint (relation M R) (relation M R') ->
     slsatisfy R' s phi -> slsatisfy (union R R') s psi
 end.
+
+

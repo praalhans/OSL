@@ -25,3 +25,13 @@ Definition slimp {Sigma: signature} (phi psi: slformula Sigma): slformula Sigma 
   slor (slnot phi) psi.
 Definition slexists {Sigma: signature} (x: V) (phi: slformula Sigma): slformula Sigma :=
   slnot (slforall x (slnot phi)).
+
+Inductive rooted (Sigma: signature): Set :=
+| mkrooted: slformula Sigma -> binformula Sigma -> rooted Sigma.
+
+Inductive biformula (Sigma: signature): Set :=
+| fol: formula Sigma -> biformula Sigma
+| sl: rooted Sigma -> biformula Sigma.
+
+Inductive sequent (Sigma: signature): Set :=
+| mksequent: list (biformula Sigma) -> list (biformula Sigma) -> sequent Sigma.

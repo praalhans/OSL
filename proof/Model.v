@@ -299,10 +299,3 @@ split; intro.
     apply propositional_extensionality; split; intro.
     auto. exfalso; auto.
 Qed.
-
-
-
-
-
-
-
