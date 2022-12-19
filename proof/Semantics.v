@@ -9,6 +9,10 @@ match phi with
 | slnot phi => ~slsatisfy R s phi
 | sland phi psi => slsatisfy R s phi /\ slsatisfy R s psi
 | slforall x phi => forall (d: domain M), slsatisfy R (update s x d) phi
-| sand phi psi => True
-| simp phi psi => True
+| sand phi psi => exists (R1 R2: binformula Sigma),
+    DisjointUnion (relation M R) (relation M R1) (relation M R2) /\
+    slsatisfy R1 s phi /\ slsatisfy R2 s psi
+| simp phi psi => forall (R': binformula Sigma),
+    Disjoint (relation M R) (relation M R') ->
+    slsatisfy R' s phi -> slsatisfy (union R R') s psi
 end.
