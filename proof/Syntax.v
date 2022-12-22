@@ -1,5 +1,78 @@
 Require Export SeparationLogicProofSystem.Model.
 
+(* Second-order dyadic relation variables *)
+Definition W := nat.
+
+Inductive rformula (Sigma: signature): Set :=
+| rvar: W -> term Sigma -> term Sigma -> rformula Sigma
+| req: term Sigma -> term Sigma -> rformula Sigma
+| rprim (P: Pred Sigma): Vector.t (term Sigma) (adic P) -> rformula Sigma
+| rlnot: rformula Sigma -> rformula Sigma
+| rland: rformula Sigma -> rformula Sigma -> rformula Sigma
+| rlforall: V -> rformula Sigma -> rformula Sigma.
+
+Arguments rvar {_} _ _ _.
+Arguments req {_} _ _.
+Arguments rprim {_} _ _.
+Arguments rlnot {_} _.
+Arguments rland {_} _ _.
+Arguments rlforall {_} _ _.
+
+Fixpoint freevarrfl {Sigma: signature} (phi: rformula Sigma): list V :=
+match phi with
+| rvar w t1 t2 => List.app (freevartl t1) (freevartl t2)
+| req t1 t2 => List.app (freevartl t1) (freevartl t2)
+| rprim _ arg => Vector.fold_right (@List.app V)
+    (Vector.map (@freevartl Sigma) arg) List.nil
+| rlnot phi => freevarrfl phi
+| rland phi psi => List.app (freevarrfl phi) (freevarrfl psi)
+| rlforall z phi => List.remove (Nat.eq_dec) z (freevarrfl phi)
+end.
+
+Definition freevarrf {Sigma: signature} (phi: rformula Sigma): V -> Prop :=
+fun z => List.In z (freevarrfl phi).
+
+Record binrformula (Sigma: signature) := mkbinrformula
+{ binrformula_form: rformula Sigma
+; binrformula_prop: forall z, freevarrf binrformula_form z ->
+    z = x \/ z = y
+}.
+Coercion binrformula_form: binrformula >-> rformula.
+
+Record rsentence (Sigma: signature) := mkrsentence
+{ rsentence_form: rformula Sigma
+; rsentence_prop: forall z, ~freevarrf rsentence_form z
+}.
+Coercion rsentence_form: rsentence >-> rformula.
+Proposition rsentence_binrformula_prop {Sigma: signature} (phi: rsentence Sigma):
+  forall z : V, freevarrf phi z -> z = x \/ z = y.
+intros. pose proof (rsentence_prop _ phi).
+exfalso. eapply H0. apply H.
+Qed.
+Definition rsentence_binrformula {Sigma: signature} (phi: rsentence Sigma): binrformula Sigma :=
+mkbinrformula _ phi (rsentence_binrformula_prop phi).
+Coercion rsentence_binrformula: rsentence >-> binrformula.
+
+Definition replacement (Sigma: signature) := W -> binformula Sigma.
+
+Fixpoint rformula_replace {Sigma: signature} (t: replacement Sigma) (phi: rformula Sigma): formula Sigma :=
+match phi with
+| rvar w t1 t2 => fsub t2 y (fsub t1 x (t w))
+| req t1 t2 => eq t1 t2
+| rprim p arg => prim p arg
+| rlnot phi => lnot (rformula_replace t phi)
+| rland phi psi => land (rformula_replace t phi) (rformula_replace t psi)
+| rlforall z phi =>  lforall z (rformula_replace t phi)
+end.
+
+Proposition rformula_replace_prop {Sigma: signature} (t: replacement Sigma) (phi: binrformula Sigma):
+  forall z : V, freevarf (rformula_replace t phi) z -> z = x \/ z = y.
+Admitted.
+
+Definition binrformula_binformula {Sigma: signature} (t: replacement Sigma)
+  (phi: binrformula Sigma): binformula Sigma :=
+mkbinformula _ (rformula_replace t phi) (rformula_replace_prop t phi).
+
 Inductive slformula (Sigma: signature): Set :=
 | sleq: term Sigma -> term Sigma -> slformula Sigma
 | slhasval: term Sigma -> term Sigma -> slformula Sigma
@@ -27,11 +100,13 @@ Definition slexists {Sigma: signature} (x: V) (phi: slformula Sigma): slformula 
   slnot (slforall x (slnot phi)).
 
 Inductive rooted (Sigma: signature): Set :=
-| mkrooted: slformula Sigma -> binformula Sigma -> rooted Sigma.
+| mkrooted: slformula Sigma -> binrformula Sigma -> rooted Sigma.
 
-Inductive biformula (Sigma: signature): Set :=
-| fol: formula Sigma -> biformula Sigma
-| sl: rooted Sigma -> biformula Sigma.
+Arguments mkrooted {_} _ _.
+
+Definition slbin (Sigma: signature): slformula Sigma := slhasval (id x) (id y).
+
+Definition root {Sigma: signature} (p: rsentence Sigma): rooted Sigma := mkrooted (slbin Sigma) p.
 
 Inductive sequent (Sigma: signature): Set :=
-| mksequent: list (biformula Sigma) -> list (biformula Sigma) -> sequent Sigma.
+| mksequent: list (rooted Sigma) -> list (rooted Sigma) -> sequent Sigma.

@@ -32,30 +32,33 @@ Record csignature: Type := mkcsignature
 ; Func_countable: countable (Func sig)
 ; Pred_countable: countable (Pred sig) }.
 
-Record bcsignature: Type := mkbcsignature
-{ sig2 :> csignature
-; bin_enumerate: nat -> Pred sig2
-; bin_inject: forall (n m: nat), bin_enumerate n = bin_enumerate m -> n = m
-; bin_surject: forall (P: Pred sig2), exists (n: nat), bin_enumerate n = P }.
-
+(* First-order individual variables *)
 Definition V := nat.
-Definition dummy1: V := 0.
-Definition dummy2: V := 1.
+Definition x: V := 0.
+Definition y: V := 1.
 
 Inductive term (Sigma: signature): Set :=
 | id: V -> term Sigma
 | app (f: Func Sigma): Vector.t (term Sigma) (arity f) -> term Sigma.
+
+Arguments id {_} _.
 Arguments app {_} _ _.
+
+Fixpoint tsub {Sigma: signature} (t: term Sigma) (z: V) (s: term Sigma): term Sigma :=
+match s with
+| id zz => if Nat.eq_dec z zz then t else id zz
+| app f arg => app f (Vector.map (tsub t z) arg)
+end.
 
 Fixpoint freevartl {Sigma: signature} (t: term Sigma): list V :=
 match t with
-| id _ x => List.cons x List.nil
+| id z => List.cons z List.nil
 | app _ arg => Vector.fold_right (@List.app V)
     (Vector.map (@freevartl Sigma) arg) List.nil
 end.
 
 Definition freevart {Sigma: signature} (t: term Sigma): V -> Prop :=
-fun x => List.In x (freevartl t).
+fun z => List.In z (freevartl t).
 
 Inductive formula (Sigma: signature): Set :=
 | eq: term Sigma -> term Sigma -> formula Sigma
@@ -63,6 +66,7 @@ Inductive formula (Sigma: signature): Set :=
 | lnot: formula Sigma -> formula Sigma
 | land: formula Sigma -> formula Sigma -> formula Sigma
 | lforall: V -> formula Sigma -> formula Sigma.
+
 Arguments eq {_} _ _.
 Arguments prim {_} _ _.
 Arguments lnot {_} _.
@@ -75,8 +79,17 @@ Definition limp {Sigma: signature} (phi psi: formula Sigma): formula Sigma :=
   lor (lnot phi) psi.
 Definition lbimp {Sigma: signature} (phi psi: formula Sigma): formula Sigma :=
   land (limp phi psi) (limp psi phi).
-Definition lexists {Sigma: signature} (x: V) (phi: formula Sigma): formula Sigma :=
-  lnot (lforall x (lnot phi)).
+Definition lexists {Sigma: signature} (z: V) (phi: formula Sigma): formula Sigma :=
+  lnot (lforall z (lnot phi)).
+
+Fixpoint fsub {Sigma: signature} (t: term Sigma) (z: V) (phi: formula Sigma): formula Sigma :=
+match phi with
+| eq t1 t2 => eq (tsub t z t1) (tsub t z t2)
+| prim p arg => prim p (Vector.map (tsub t z) arg)
+| lnot phi => lnot (fsub t z phi)
+| land phi psi => land (fsub t z phi) (fsub t z psi)
+| lforall zz phi => if Nat.eq_dec z zz then lforall zz phi else lforall zz (fsub t z phi)
+end.
 
 Fixpoint freevarfl {Sigma: signature} (phi: formula Sigma): list V :=
 match phi with
@@ -85,16 +98,16 @@ match phi with
     (Vector.map (@freevartl Sigma) arg) List.nil
 | lnot phi => freevarfl phi
 | land phi psi => List.app (freevarfl phi) (freevarfl psi)
-| lforall x phi => List.remove (Nat.eq_dec) x (freevarfl phi)
+| lforall z phi => List.remove (Nat.eq_dec) z (freevarfl phi)
 end.
 
 Definition freevarf {Sigma: signature} (phi: formula Sigma): V -> Prop :=
-fun x => List.In x (freevarfl phi).
+fun z => List.In z (freevarfl phi).
 
 Record binformula (Sigma: signature) := mkbinformula
 { binformula_form: formula Sigma
-; binformula_prop: forall x, freevarf binformula_form x ->
-    x = dummy1 \/ x = dummy2
+; binformula_prop: forall z, freevarf binformula_form z ->
+    z = x \/ z = y
 }.
 Coercion binformula_form: binformula >-> formula.
 
@@ -122,7 +135,7 @@ fun y => if Nat.eq_dec x y then d else s y.
 Fixpoint interp {Sigma: signature} {M: model Sigma}
   (s: valuation M) (t: term Sigma): M :=
 match t with
-| id _ x => s x
+| id x => s x
 | app f arg => func f (Vector.map (interp s) arg)
 end.
 
@@ -218,13 +231,13 @@ split; intro; unfold lexists in *.
 Qed.
 
 Definition relation {Sigma: signature} (M: model Sigma) (phi: binformula Sigma): M -> M -> Prop :=
-fun d d' => satisfy (update (update (nulval M) dummy1 d) dummy2 d') phi.
+fun d d' => satisfy (update (update (nulval M) x d) y d') phi.
 
 Definition Union {D: Type} (R1 R2: D -> D -> Prop): D -> D -> Prop :=
 fun x y => R1 x y \/ R2 x y.
 
 Proposition union_prop {Sigma: signature} (phi psi: binformula Sigma):
-  forall x : V, freevarf (lor phi psi) x -> x = dummy1 \/ x = dummy2.
+  forall z : V, freevarf (lor phi psi) z -> z = x \/ z = y.
 intros.
 unfold freevarf in H.
 simpl in H.
@@ -276,7 +289,7 @@ split; intro.
   + rewrite H. apply iff_refl.
   + remember (fun x y : D => R1 x y /\ R2 x y) as f.
     remember (fun _ _ : D => False) as g.
-    assert (f x y = g x y).
+    assert (f x0 y0 = g x0 y0).
     rewrite H0; reflexivity.
     rewrite Heqf in H1.
     rewrite Heqg in H1.
@@ -284,18 +297,18 @@ split; intro.
     intro; auto.
 - unfold DisjointUnion. split.
   + unfold Union.
-    apply functional_extensionality; intro x.
-    apply functional_extensionality; intro y.
-    specialize H with x y; destruct H.
+    apply functional_extensionality; intro x0.
+    apply functional_extensionality; intro y0.
+    specialize H with x0 y0; destruct H.
     apply propositional_extensionality; split; intro.
     rewrite H in H1; auto.
     rewrite H; auto.
   + unfold Disjoint.
     unfold Intersect.
     unfold Empty.
-    apply functional_extensionality; intro x.
-    apply functional_extensionality; intro y.
-    specialize H with x y; destruct H.
+    apply functional_extensionality; intro x0.
+    apply functional_extensionality; intro y0.
+    specialize H with x0 y0; destruct H.
     apply propositional_extensionality; split; intro.
     auto. exfalso; auto.
 Qed.
