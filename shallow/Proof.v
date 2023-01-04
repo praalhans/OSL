@@ -163,7 +163,8 @@ Qed.
 
 (* Completeness of the proof system *)
 
-Proposition bigstep_cond (S1: program) (p: heap * store) (o: option (heap * store)):
+(* TODO: also adapt to None outcome *)
+Proposition bigstep_cond_Some (S1: program) (p: heap * store) (o: option (heap * store)):
   bigstep S1 p o ->
   forall xs, (forall x, In x (pvar S1) -> In x xs) ->
   forall h s, (h, s) = p ->
@@ -286,6 +287,7 @@ Proposition cwlp_cond (S1: program) (q: cassert):
       bigstep S1 (h, t) (Some (h', s')) -> q (h', s')).
 intros; split; intro; destruct H0.
 - split.
+  (* TODO: need to adapt above proposition to None outcome *)
   admit.
   intros.
   pose proof (bigstep_cond S1 (h, t) (Some (h', s')) H2 (pvar S1 ++ cvar q)).
@@ -334,6 +336,16 @@ split; intros.
   split. assumption.
   assumption.
 Qed.
+
+
+
+
+
+
+
+
+
+
 
 
 
