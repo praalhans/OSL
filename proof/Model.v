@@ -1,23 +1,4 @@
-Require Export FunctionalExtensionality.
-Require Export PropExtensionality.
-Require Export PeanoNat.
-Require Export Classical.
-
-Require Coq.Lists.List.
-Require Coq.Vectors.Vector.
-
-Record finite (T: Type) := mkfinite
-{ listing: list T
-; listing_full: forall (t: T), List.In t listing }.
-
-Record denumerable (T: Type) := mkdenumerable
-{ enumerate: nat -> T
-; enumerate_inject: forall (n m: nat), enumerate n = enumerate m -> n = m
-; enumerate_surject: forall (t: T), exists (n: nat), enumerate n = t }.
-
-Inductive countable (T: Type) :=
-| is_finite: finite T -> countable T
-| is_infinite: denumerable T -> countable T.
+Require Export SeparationLogicProofSystem.Util.
 
 Record signature: Type := mksignature
 { Func: Set
@@ -103,6 +84,19 @@ end.
 
 Definition freevarf {Sigma: signature} (phi: formula Sigma): V -> Prop :=
 fun z => List.In z (freevarfl phi).
+
+Proposition freevarf_eq {Sigma: signature} (t1 t2: term Sigma):
+  freevarf (eq t1 t2) = Union (freevart t1) (freevart t2).
+apply functional_extensionality; intro z.
+unfold freevarf; simpl.
+unfold Union.
+apply propositional_extensionality.
+apply List.in_app_iff.
+Qed.
+
+Proposition freevarf_fsub {Sigma: signature} (t: term Sigma) (z: V) (phi: formula Sigma):
+freevarf (fsub t z phi) = Union (Subtract (freevarf phi) z) (freevart t).
+Admitted.
 
 Record binformula (Sigma: signature) := mkbinformula
 { binformula_form: formula Sigma
@@ -230,11 +224,8 @@ split; intro; unfold lexists in *.
   intro. apply H0; auto.
 Qed.
 
-Definition relation {Sigma: signature} (M: model Sigma) (phi: binformula Sigma): M -> M -> Prop :=
-fun d d' => satisfy (update (update (nulval M) x d) y d') phi.
-
-Definition Union {D: Type} (R1 R2: D -> D -> Prop): D -> D -> Prop :=
-fun x y => R1 x y \/ R2 x y.
+Definition relation {Sigma: signature} (M: model Sigma) (phi: binformula Sigma): M * M -> Prop :=
+fun '(d, d') => satisfy (update (update (nulval M) x d) y d') phi.
 
 Proposition union_prop {Sigma: signature} (phi psi: binformula Sigma):
   forall z : V, freevarf (lor phi psi) z -> z = x \/ z = y.
@@ -251,8 +242,7 @@ mkbinformula _ (lor phi psi) (union_prop phi psi).
 Proposition Union_union {Sigma: signature} (M: model Sigma) (phi: binformula Sigma) (psi: binformula Sigma):
   Union (relation M phi) (relation M psi) = relation M (union phi psi).
 unfold Union.
-apply functional_extensionality; intro x.
-apply functional_extensionality; intro y.
+apply functional_extensionality; intro; destruct x0 as (x, y).
 unfold relation.
 simpl.
 apply propositional_extensionality; split; intro.
@@ -263,52 +253,4 @@ intro. destruct H0.
 apply H1; auto.
 apply not_and_or in H.
 destruct H; apply NNPP in H; auto.
-Qed.
-
-Definition Intersect {D: Type} (R1 R2: D -> D -> Prop): D -> D -> Prop :=
-fun x y => R1 x y /\ R2 x y.
-
-Definition Empty {D: Type}: D -> D -> Prop :=
-fun x y => False.
-
-Definition Disjoint {D: Type} (R1 R2: D -> D -> Prop): Prop :=
-Intersect R1 R2 = Empty.
-
-Definition DisjointUnion {D: Type} (R R1 R2: D -> D -> Prop): Prop :=
-R = Union R1 R2 /\ Disjoint R1 R2.
-
-Lemma DisjointUnion_spec {D: Type} (R R1 R2: D -> D -> Prop):
-  DisjointUnion R R1 R2 <-> forall x y, (R x y <-> R1 x y \/ R2 x y) /\ ~(R1 x y /\ R2 x y).
-split; intro.
-- unfold DisjointUnion in H; destruct H.
-  unfold Union in H.
-  unfold Disjoint in H0.
-  unfold Empty in H0.
-  unfold Intersect in H0.
-  intros. split.
-  + rewrite H. apply iff_refl.
-  + remember (fun x y : D => R1 x y /\ R2 x y) as f.
-    remember (fun _ _ : D => False) as g.
-    assert (f x0 y0 = g x0 y0).
-    rewrite H0; reflexivity.
-    rewrite Heqf in H1.
-    rewrite Heqg in H1.
-    rewrite H1.
-    intro; auto.
-- unfold DisjointUnion. split.
-  + unfold Union.
-    apply functional_extensionality; intro x0.
-    apply functional_extensionality; intro y0.
-    specialize H with x0 y0; destruct H.
-    apply propositional_extensionality; split; intro.
-    rewrite H in H1; auto.
-    rewrite H; auto.
-  + unfold Disjoint.
-    unfold Intersect.
-    unfold Empty.
-    apply functional_extensionality; intro x0.
-    apply functional_extensionality; intro y0.
-    specialize H with x0 y0; destruct H.
-    apply propositional_extensionality; split; intro.
-    auto. exfalso; auto.
 Qed.

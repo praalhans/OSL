@@ -32,6 +32,24 @@ end.
 Definition freevarrf {Sigma: signature} (phi: rformula Sigma): V -> Prop :=
 fun z => List.In z (freevarrfl phi).
 
+Proposition freevarrf_rvar {Sigma: signature} (w: W) (t1 t2: term Sigma):
+  freevarrf (rvar w t1 t2) = Union (freevart t1) (freevart t2).
+apply functional_extensionality; intro z.
+unfold freevarrf; simpl.
+unfold Union.
+apply propositional_extensionality.
+apply List.in_app_iff.
+Qed.
+
+Proposition freevarrf_req {Sigma: signature} (t1 t2: term Sigma):
+  freevarrf (req t1 t2) = Union (freevart t1) (freevart t2).
+apply functional_extensionality; intro z.
+unfold freevarrf; simpl.
+unfold Union.
+apply propositional_extensionality.
+apply List.in_app_iff.
+Qed.
+
 Record binrformula (Sigma: signature) := mkbinrformula
 { binrformula_form: rformula Sigma
 ; binrformula_prop: forall z, freevarrf binrformula_form z ->
@@ -67,6 +85,54 @@ end.
 
 Proposition rformula_replace_prop {Sigma: signature} (t: replacement Sigma) (phi: binrformula Sigma):
   forall z : V, freevarf (rformula_replace t phi) z -> z = x \/ z = y.
+intros.
+destruct phi; simpl in *.
+induction binrformula_form0; simpl in *.
+- rewrite freevarf_fsub in H.
+  unfold Union in H; destruct H.
+  unfold Subtract in H; destruct (eq_dec z y); auto.
+  rewrite freevarf_fsub in H.
+  unfold Union in H; destruct H.
+  unfold Subtract in H; destruct (eq_dec z x); auto.
+  pose proof (binformula_prop _ (t w) _ H); auto.
+  apply binrformula_prop0.
+  rewrite freevarrf_rvar.
+  unfold Union; auto.
+  apply binrformula_prop0.
+  rewrite freevarrf_rvar.
+  unfold Union; auto.
+- apply binrformula_prop0.
+  rewrite freevarrf_req.
+  rewrite freevarf_eq in H; auto.
+- apply binrformula_prop0.
+  unfold freevarrf.
+  unfold freevarrfl.
+  unfold freevarf in H.
+  unfold freevarfl in H.
+  auto.
+- apply IHbinrformula_form0.
+  intros. apply binrformula_prop0.
+  unfold freevarrf; unfold freevarrf in H0.
+  unfold freevarrfl; unfold freevarrfl in H0.
+  auto.
+  unfold freevarf; unfold freevarf in H.
+  unfold freevarfl; unfold freevarfl in H.
+  auto.
+- unfold freevarf in H. simpl in H.
+  rewrite List.in_app_iff in H; destruct H.
+  apply IHbinrformula_form0_1.
+  intros. apply binrformula_prop0.
+  unfold freevarrf; unfold freevarrf in H0; simpl.
+  rewrite List.in_app_iff; auto.
+  unfold freevarf; auto.
+  apply IHbinrformula_form0_2.
+  intros. apply binrformula_prop0.
+  unfold freevarrf; unfold freevarrf in H0; simpl.
+  rewrite List.in_app_iff; auto.
+  unfold freevarf; auto.
+- apply IHbinrformula_form0.
+  intros. apply binrformula_prop0.
+  unfold freevarrf; unfold freevarrfl.
 Admitted.
 
 Definition binrformula_binformula {Sigma: signature} (t: replacement Sigma)
