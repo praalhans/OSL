@@ -13,4 +13,5 @@ proof/Semantics.v
 proof/System.v
 proof/Soundness.v
 shallow/Language.v
+shallow/Proof.v
 
