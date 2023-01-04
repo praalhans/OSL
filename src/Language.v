@@ -1266,7 +1266,7 @@ Qed.
 (* BASIC INSTRUCTIONS AND WHILE PROGRAMS *)
 (* ===================================== *)
 
-Variant assignment :=
+Inductive assignment :=
 | basic: V -> expr -> assignment
 | lookup: V -> expr -> assignment
 | mutation: V -> expr -> assignment
