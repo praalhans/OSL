@@ -885,6 +885,35 @@ intros; split; intro.
     apply H6.
 Qed.
 
+Definition omega: program := while true skip.
+
+Proposition omega_diverge_equiv:
+  forall h s o,
+    bigstep omega (h, s) o <->
+    bigstep diverge (h, s) o.
+intros. unfold omega.
+rewrite while_approx.
+split; intro.
+destruct H.
+generalize dependent s.
+generalize dependent h.
+induction x; intros; simpl in H.
+auto.
+inversion H.
+inversion H7.
+rewrite H11.
+apply IHx.
+inversion H13.
+rewrite <- H11. assumption.
+inversion H13.
+rewrite H11.
+apply IHx.
+rewrite <- H11.
+inversion H13. assumption.
+inversion H6.
+inversion H.
+Qed.
+
 Proposition bigstep_cond (S1: program) (p: heap * store) (o: option (heap * store)):
   bigstep S1 p o ->
   forall xs, (forall x, In x (pvar S1) -> In x xs) ->
