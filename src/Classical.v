@@ -239,8 +239,43 @@ unfold emp; split; intros.
   apply H.
 Qed.
 
-(* poitnsto <-> dom h = Singleton Z (eval e s) /\
-      h (eval e s) = eval e' s *)
+Proposition satisfy_pointsto (h: heap) (s: store) (e1 e2: expr):
+  satisfy h s (pointsto e1 e2) <->
+  h (eval e1 s) = eval e2 s /\ forall z, z <> eval e1 s -> ~dom h z.
+split; intro.
+- unfold pointsto in H.
+  rewrite satisfy_land in H; destruct H.
+  rewrite satisfy_lforall in H0.
+  rewrite satisfy_hasval in H.
+  split; auto.
+  intros.
+  specialize H0 with z.
+  rewrite satisfy_limp in H0.
+  intro.
+  rewrite satisfy_equals in H0.
+  rewrite satisfy_hasvaldash in H0.
+  simpl in H0.
+  rewrite store_update_lookup_same in H0.
+  apply H0 in H2.
+  erewrite <- eval_store_update_notInVar in H2.
+  apply H1; auto.
+  apply fresh_notIn.
+- destruct H.
+  unfold pointsto.
+  rewrite satisfy_land; split.
+  rewrite satisfy_hasval; auto.
+  rewrite satisfy_lforall; intro.
+  rewrite satisfy_limp; intro.
+  rewrite satisfy_equals.
+  rewrite satisfy_hasvaldash in H1.
+  simpl in *.
+  rewrite store_update_lookup_same in *.
+  rewrite <- eval_store_update_notInVar.
+  specialize H0 with v.
+  destruct (Z.eq_dec v (e1 s)); auto.
+  exfalso; apply H0; auto.
+  apply fresh_notIn.
+Qed.
 
 (* ============ *)
 (* BOX MODALITY *)
