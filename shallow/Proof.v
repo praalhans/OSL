@@ -210,7 +210,7 @@ inversion G1; inversion G2; clear G1 G2.
 - exists t. split.
   rewrite <- H1. auto.
   apply step_skip.
-- destruct IHbigstep1 with (xs := xs) (h0 := h) (s0 := s) (h'0 := h') (s'0 := s') (t := t); auto.
+- destruct IHbigstep1 with (xs := xs) (h := h) (s := s) (h' := h') (s' := s') (t := t); auto.
   intros. apply G. simpl. apply in_or_app; auto. rewrite <- H3. auto.
   destruct H1.
   destruct IHbigstep2 with (xs := xs) (h := h') (s := s') (h' := h'') (s' := s'') (t := x); auto.
@@ -221,7 +221,7 @@ inversion G1; inversion G2; clear G1 G2.
   apply H6.
   apply H8.
 - destruct o. destruct p.
-  destruct IHbigstep with (xs := xs) (h0 := h) (s0 := s) (h' := h1) (s' := s1) (t := t); auto.
+  destruct IHbigstep with (xs := xs) (h := h) (s := s) (h' := h1) (s' := s1) (t := t); auto.
   intros. apply G. simpl. apply in_or_app. right. apply in_or_app; auto.
   rewrite <- H3; auto.
   destruct H4.
@@ -235,7 +235,7 @@ inversion G1; inversion G2; clear G1 G2.
   inversion H1.
 - admit.
 - destruct o; inversion H2. destruct p; inversion H6.
-  destruct IHbigstep1 with (xs := xs) (h0 := h) (s0 := s) (h'0 := h') (s'0 := s') (t := t); auto.
+  destruct IHbigstep1 with (xs := xs) (h := h) (s := s) (h' := h') (s' := s') (t := t); auto.
   intros. apply G. simpl. apply in_or_app; auto. rewrite H4 in G3; auto.
   destruct H5.
   destruct IHbigstep2 with (xs := xs) (h := h') (s := s') (h' := h1) (s' := s1) (t := x); auto.
@@ -290,8 +290,8 @@ intros; split; intro; destruct H0.
   (* TODO: need to adapt above proposition to None outcome *)
   admit.
   intros.
-  pose proof (bigstep_cond S1 (h, t) (Some (h', s')) H2 (pvar S1 ++ cvar q)).
-  destruct H3 with (h0 := h) (s := t) (h'0 := h') (s'0 := s') (t := s); auto.
+  pose proof (bigstep_cond_Some S1 (h, t) (Some (h', s')) H2 (pvar S1 ++ cvar q)).
+  destruct H3 with (h := h) (s := t) (h' := h') (s' := s') (t := s); auto.
   intros. apply in_or_app; auto.
   apply eq_restr_comm. apply H.
   destruct H4. apply H1 in H5.

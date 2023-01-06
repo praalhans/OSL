@@ -2444,7 +2444,7 @@ rewrite satisfy_hasval in H6.
 pose proof (cheap_clear_substitution_lemma h' s (lexists y ps) x).
 assert (dom h' (s x)).
 rewrite dom_spec; intro. simpl in H6; rewrite H6 in H8. inversion H8.
-apply H7 with (ps0 := pss) in H8; auto; clear H7.
+apply H7 with (ps := pss) in H8; auto; clear H7.
 apply H8 in H5; clear H8.
 rewrite satisfy_lexists in H5; destruct H5.
 rewrite store_substitution_lemma in H5; [|apply H2].
