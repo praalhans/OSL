@@ -1274,11 +1274,12 @@ Inductive assignment :=
 | dispose: V -> assignment.
 
 Inductive program :=
-| assign: assignment -> program.
-(*| skip: program
+| assign: assignment -> program
+| diverge: program
+| skip: program
 | comp: program -> program -> program
 | ite: guard -> program -> program -> program
-| while: guard -> program -> program.*)
+| while: guard -> program -> program.
 Coercion assign: assignment >-> program.
 
 (* ================================================ *)
@@ -1309,8 +1310,8 @@ Inductive bigstep: program -> heap * store -> option (heap * store) -> Prop :=
     bigstep (dispose x) (h, s) (Some (heap_clear h (s x), s))
 | step_dispose_fail (x: V) (h: heap) (s: store):
     ~dom h (s x) ->
-    bigstep (dispose x) (h, s) None.
-(*| step_skip (h: heap) (s: store):
+    bigstep (dispose x) (h, s) None
+| step_skip (h: heap) (s: store):
     bigstep skip (h, s) (Some (h, s))
 | step_comp (S1 S2: program) (h h' h'': heap) (s s' s'': store):
     bigstep S1 (h, s) (Some (h', s')) ->
@@ -1331,9 +1332,118 @@ Inductive bigstep: program -> heap * store -> option (heap * store) -> Prop :=
     g s = false ->
     bigstep S2 (h, s) o ->
     bigstep (ite g S1 S2) (h, s) o
-| step_while (g: guard) (S1: program) (h: heap) (s: store) o:
-    bigstep (ite g (comp S1 (while g S1)) skip) (h, s) o ->
-    bigstep (while g S1) (h, s) o.*)
+| step_while_true (g: guard) (S1: program) (h h': heap) (s s': store) o:
+    g s = true ->
+    bigstep S1 (h, s) (Some (h', s')) ->
+    bigstep (while g S1) (h', s') o ->
+    bigstep (while g S1) (h, s) o
+| step_while_false (g: guard) (S1: program) (h: heap) (s: store):
+    g s = false ->
+    bigstep (while g S1) (h, s) (Some (h, s))
+| step_while_fail (g: guard) (S1: program) (h: heap) (s: store):
+    g s = true ->
+    bigstep S1 (h, s) None ->
+    bigstep (while g S1) (h, s) None.
+
+Proposition diverge_empty (h: heap) (s: store):
+  forall o, ~bigstep diverge (h, s) o.
+intros; intro; inversion H.
+Qed.
+
+Fixpoint approx (n: nat) (g: guard) (S1: program): program :=
+  match n with
+  | O => diverge
+  | S m => ite g (comp S1 (approx m g S1)) skip
+  end.
+
+Proposition while_approx (g: guard) (S1: program):
+  forall h s o,
+    bigstep (while g S1) (h, s) o <->
+    exists n, bigstep (approx n g S1) (h, s) o.
+intros; split; intro.
+- remember (while g S1).
+  induction H; try inversion Heqp.
+  + apply IHbigstep2 in Heqp.
+    destruct Heqp.
+    exists (S x).
+    simpl.
+    apply step_ite_true.
+    rewrite <- H3. apply H.
+    destruct o; [destruct p|].
+    eapply step_comp.
+    rewrite <- H4. apply H0. apply H2.
+    eapply step_comp_fail2.
+    rewrite <- H4. apply H0. apply H2.
+  + exists 1.
+    simpl.
+    apply step_ite_false.
+    rewrite <- H1. apply H.
+    apply step_skip.
+  + exists 1.
+    simpl.
+    apply step_ite_true.
+    rewrite <- H2. apply H.
+    apply step_comp_fail1.
+    rewrite <- H3. apply H0.
+- destruct H.
+  generalize dependent h.
+  generalize dependent s.
+  generalize dependent o.
+  induction x; intros.
+  + simpl in H.
+    exfalso.
+    pose proof (diverge_empty h s).
+    specialize H0 with o.
+    apply H0; auto.
+  + simpl in H.
+    inversion H.
+    inversion H7.
+    apply IHx in H14.
+    eapply step_while_true.
+    apply H6.
+    apply H13.
+    apply H14.
+    apply step_while_fail.
+    apply H6.
+    apply H13.
+    apply IHx in H14.
+    eapply step_while_true.
+    apply H6.
+    apply H13.
+    apply H14.
+    inversion H7.
+    eapply step_while_false.
+    apply H6.
+Qed.
+
+Definition omega: program := while true skip.
+
+Proposition omega_diverge_equiv:
+  forall h s o,
+    bigstep omega (h, s) o <->
+    bigstep diverge (h, s) o.
+intros. unfold omega.
+rewrite while_approx.
+split; intro.
+destruct H.
+generalize dependent s.
+generalize dependent h.
+induction x; intros; simpl in H.
+auto.
+inversion H.
+inversion H7.
+rewrite H11.
+apply IHx.
+inversion H13.
+rewrite <- H11. assumption.
+inversion H13.
+rewrite H11.
+apply IHx.
+rewrite <- H11.
+inversion H13. assumption.
+inversion H6.
+inversion H.
+Qed.
 
 (* ============= *)
 (* HOARE TRIPLES *)
@@ -1346,35 +1456,12 @@ Definition pre: hoare -> assert := fun '(mkhoare p _ _) => p.
 Definition S: hoare -> program := fun '(mkhoare _ x _) => x.
 Definition post: hoare -> assert := fun '(mkhoare _ _ q) => q.
 
-Definition restrict_post: hoare -> Prop := fun '(mkhoare _ x q) =>
-  match x with
-  | assign x => match x with
-    | basic x e => (forall y, In y (evar e) -> ~In y (abound q))
-    | lookup x e => True
-    | mutation x e => (forall y, In y (x :: evar e) -> ~In y (abound q))
-    | new x e => ~In x (evar e) /\ (forall y, In y (x :: evar e) -> ~In y (abound q))
-    | dispose x => ~In x (abound q)
-    end
-  end.
-
-Definition restrict_pre: hoare -> Prop := fun '(mkhoare p x _) =>
-  match x with
-  | assign x => match x with
-    | basic x e => ~In x (abound p)
-    | lookup x e => ~In x (abound p)
-    | mutation x e => ~In x (abound p)
-    | new x e => ~In x (evar e) /\ ~In x (abound p)
-    | dispose x => ~In x (abound p)
-    end
-  end.
-
-Definition restrict (pSq: hoare): Prop := restrict_post pSq /\ restrict_pre pSq.
-
 (* ======================================================================= *)
 (* WEAKEST PRECONDITION AXIOMATIZATION (WP-CSL), SEE FIGURE 3 IN THE PAPER *)
 (* ======================================================================= *)
 
 Inductive WPCSL (Gamma: assert -> Prop): hoare -> Set :=
+(* Rules for assignments *)
 | wpc_basic (p ps: assert) (x: V) (e: expr):
     asub p x e = Some ps ->
     WPCSL Gamma (mkhoare ps (basic x e) p)
@@ -1389,9 +1476,27 @@ Inductive WPCSL (Gamma: assert -> Prop): hoare -> Set :=
     ~In x (evar e) ->
     asub_heap_update p x e = ps ->
     WPCSL Gamma (mkhoare (lforall x (limp (lnot (hasvaldash x)) ps)) (new x e) p)
+| wpc_new_util (p q: assert) (x y: V) (e: expr):
+    ~In y (x :: aoccur p ++ aoccur q ++ evar e) ->
+    WPCSL Gamma (mkhoare p (comp (basic y x) (new x (esub e x y))) q) ->
+    WPCSL Gamma (mkhoare p (new x e) q)
 | wpc_dispose (p ps: assert) (x: V):
     asub_heap_clear p x = ps ->
     WPCSL Gamma (mkhoare (land (hasvaldash x) ps) (dispose x) p)
+(* Standard compositional rules *)
+| wpc_skip (p: assert):
+    WPCSL Gamma (mkhoare p skip p)
+| wpc_compose (p q r: assert) (S1 S2: program):
+    WPCSL Gamma (mkhoare p S1 r) ->
+    WPCSL Gamma (mkhoare r S2 q) ->
+    WPCSL Gamma (mkhoare p (comp S1 S2) q)
+| wpc_ite (p q: assert) (g: guard) (S1 S2: program):
+    WPCSL Gamma (mkhoare (land p g) S1 q) ->
+    WPCSL Gamma (mkhoare (land p (lnot g)) S2 q) ->
+    WPCSL Gamma (mkhoare p (ite g S1 S2) q)
+| wpc_while (p: assert) (g: guard) (S1: program):
+    WPCSL Gamma (mkhoare (land p g) S1 p) ->
+    WPCSL Gamma (mkhoare p (while g S1) (land p (lnot g)))
 | wpc_conseq (p pp q qq: assert) (x: program):
     Gamma (limp pp p) -> WPCSL Gamma (mkhoare p x q) -> Gamma (limp q qq) ->
     WPCSL Gamma (mkhoare pp x qq).
