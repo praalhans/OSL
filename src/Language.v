@@ -1456,12 +1456,80 @@ Definition pre: hoare -> assert := fun '(mkhoare p _ _) => p.
 Definition S: hoare -> program := fun '(mkhoare _ x _) => x.
 Definition post: hoare -> assert := fun '(mkhoare _ _ q) => q.
 
+Definition restrict_post: hoare -> Prop := fun '(mkhoare _ S1 q) =>
+  match S1 with
+  | assign S1 => match S1 with
+    | basic x e => (forall y, In y (evar e) -> ~In y (abound q))
+    | lookup x e => True
+    | mutation x e => (forall y, In y (x :: evar e) -> ~In y (abound q))
+    | new x e => ~In x (evar e) /\ (forall y, In y (x :: evar e) -> ~In y (abound q))
+    | dispose x => ~In x (abound q)
+    end
+  | _ => False
+  end.
+
+Definition restrict_pre: hoare -> Prop := fun '(mkhoare p S1 _) =>
+  match S1 with
+  | assign S1 => match S1 with
+    | basic x e => ~In x (abound p)
+    | lookup x e => ~In x (abound p)
+    | mutation x e => ~In x (abound p)
+    | new x e => ~In x (evar e) /\ ~In x (abound p)
+    | dispose x => ~In x (abound p)
+    end
+  | _ => False
+  end.
+
+Definition restrict (pSq: hoare): Prop := restrict_post pSq /\ restrict_pre pSq.
+
 (* ======================================================================= *)
 (* WEAKEST PRECONDITION AXIOMATIZATION (WP-CSL), SEE FIGURE 3 IN THE PAPER *)
 (* ======================================================================= *)
 
-Inductive WPCSL (Gamma: assert -> Prop): hoare -> Set :=
+Inductive WPCSL_FULL (Gamma: assert -> Prop): hoare -> Set :=
 (* Rules for assignments *)
+| wpcf_basic (p ps: assert) (x: V) (e: expr):
+    asub p x e = Some ps ->
+    WPCSL_FULL Gamma (mkhoare ps (basic x e) p)
+| wpcf_lookup (p ps: assert) (x y: V) (e: expr):
+    ~In y (x :: aoccur p ++ evar e) ->
+    asub p x y = ps ->
+    WPCSL_FULL Gamma (mkhoare (lexists y (land (hasval e y) ps)) (lookup x e) p)
+| wpcf_mutation (p ps: assert) (x: V) (e: expr):
+    asub_heap_update p x e = ps ->
+    WPCSL_FULL Gamma (mkhoare (land (hasvaldash x) ps) (mutation x e) p)
+| wpcf_new (p ps: assert) (x: V) (e: expr):
+    ~In x (evar e) ->
+    asub_heap_update p x e = ps ->
+    WPCSL_FULL Gamma (mkhoare (lforall x (limp (lnot (hasvaldash x)) ps)) (new x e) p)
+| wpcf_new_util (p q: assert) (x y: V) (e: expr):
+    ~In y (x :: aoccur p ++ aoccur q ++ evar e) ->
+    WPCSL_FULL Gamma (mkhoare p (comp (basic y x) (new x (esub e x y))) q) ->
+    WPCSL_FULL Gamma (mkhoare p (new x e) q)
+| wpcf_dispose (p ps: assert) (x: V):
+    asub_heap_clear p x = ps ->
+    WPCSL_FULL Gamma (mkhoare (land (hasvaldash x) ps) (dispose x) p)
+(* Standard compositional rules *)
+| wpcf_skip (p: assert):
+    WPCSL_FULL Gamma (mkhoare p skip p)
+| wpcf_diverge (p: assert):
+    WPCSL_FULL Gamma (mkhoare p diverge false)
+| wpcf_compose (p q r: assert) (S1 S2: program):
+    WPCSL_FULL Gamma (mkhoare p S1 r) ->
+    WPCSL_FULL Gamma (mkhoare r S2 q) ->
+    WPCSL_FULL Gamma (mkhoare p (comp S1 S2) q)
+| wpcf_ite (p q: assert) (g: guard) (S1 S2: program):
+    WPCSL_FULL Gamma (mkhoare (land p g) S1 q) ->
+    WPCSL_FULL Gamma (mkhoare (land p (lnot g)) S2 q) ->
+    WPCSL_FULL Gamma (mkhoare p (ite g S1 S2) q)
+| wpcf_while (p: assert) (g: guard) (S1: program):
+    WPCSL_FULL Gamma (mkhoare (land p g) S1 p) ->
+    WPCSL_FULL Gamma (mkhoare p (while g S1) (land p (lnot g)))
+| wpcf_conseq (p pp q qq: assert) (x: program):
+    Gamma (limp pp p) -> WPCSL_FULL Gamma (mkhoare p x q) -> Gamma (limp q qq) ->
+    WPCSL_FULL Gamma (mkhoare pp x qq).
+
+Inductive WPCSL (Gamma: assert -> Prop): hoare -> Set :=
 | wpc_basic (p ps: assert) (x: V) (e: expr):
     asub p x e = Some ps ->
     WPCSL Gamma (mkhoare ps (basic x e) p)
@@ -1476,27 +1544,9 @@ Inductive WPCSL (Gamma: assert -> Prop): hoare -> Set :=
     ~In x (evar e) ->
     asub_heap_update p x e = ps ->
     WPCSL Gamma (mkhoare (lforall x (limp (lnot (hasvaldash x)) ps)) (new x e) p)
-| wpc_new_util (p q: assert) (x y: V) (e: expr):
-    ~In y (x :: aoccur p ++ aoccur q ++ evar e) ->
-    WPCSL Gamma (mkhoare p (comp (basic y x) (new x (esub e x y))) q) ->
-    WPCSL Gamma (mkhoare p (new x e) q)
 | wpc_dispose (p ps: assert) (x: V):
     asub_heap_clear p x = ps ->
     WPCSL Gamma (mkhoare (land (hasvaldash x) ps) (dispose x) p)
-(* Standard compositional rules *)
-| wpc_skip (p: assert):
-    WPCSL Gamma (mkhoare p skip p)
-| wpc_compose (p q r: assert) (S1 S2: program):
-    WPCSL Gamma (mkhoare p S1 r) ->
-    WPCSL Gamma (mkhoare r S2 q) ->
-    WPCSL Gamma (mkhoare p (comp S1 S2) q)
-| wpc_ite (p q: assert) (g: guard) (S1 S2: program):
-    WPCSL Gamma (mkhoare (land p g) S1 q) ->
-    WPCSL Gamma (mkhoare (land p (lnot g)) S2 q) ->
-    WPCSL Gamma (mkhoare p (ite g S1 S2) q)
-| wpc_while (p: assert) (g: guard) (S1: program):
-    WPCSL Gamma (mkhoare (land p g) S1 p) ->
-    WPCSL Gamma (mkhoare p (while g S1) (land p (lnot g)))
 | wpc_conseq (p pp q qq: assert) (x: program):
     Gamma (limp pp p) -> WPCSL Gamma (mkhoare p x q) -> Gamma (limp q qq) ->
     WPCSL Gamma (mkhoare pp x qq).

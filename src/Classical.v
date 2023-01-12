@@ -1706,7 +1706,7 @@ Qed.
 
 Theorem WPCSL_completeness (Gamma: assert -> Prop) (O: forall p, validity p -> Gamma p):
   forall pSq, restrict_post pSq -> strong_partial_correct pSq -> inhabited (WPCSL Gamma pSq).
-intros. destruct pSq as (p, S, q); destruct S; destruct a; unfold restrict_post in H.
+intros. unfold restrict_post in H. destruct pSq as (p, S, q). destruct S; try inversion H. destruct a.
 - rewrite asub_defined with (x := v) in H.
   destruct H. constructor.
   apply wpc_conseq with (p := x) (q := q).
@@ -2142,7 +2142,7 @@ Qed.
 
 Theorem SPCSL_completeness (Gamma: assert -> Prop) (O: forall p, validity p -> Gamma p):
   forall pSq, restrict_pre pSq -> strong_partial_correct pSq -> inhabited (SPCSL Gamma pSq).
-intros. destruct pSq as (p, S, q); destruct S; destruct a; unfold restrict_pre in H.
+intros. unfold restrict_post in H. destruct pSq as (p, S, q). destruct S; try inversion H. destruct a.
 - remember (fresh (v :: aoccur p ++ evar e ++ aoccur q)) as y.
   pose proof (asub_defined p v y).
   assert (forall x, In x (evar y) -> ~In x (abound p)). intros.
