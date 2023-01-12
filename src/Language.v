@@ -1504,7 +1504,7 @@ Inductive WPCSL_FULL (Gamma: assert -> Prop): hoare -> Set :=
     WPCSL_FULL Gamma (mkhoare (lforall x (limp (lnot (hasvaldash x)) ps)) (new x e) p)
 | wpcf_new_util (p q: assert) (x y: V) (e: expr):
     ~In y (x :: aoccur p ++ aoccur q ++ evar e) ->
-    WPCSL_FULL Gamma (mkhoare p (comp (basic y x) (new x (esub e x y))) q) ->
+    WPCSL_FULL Gamma (mkhoare p (comp (basic y e) (new x y)) q) ->
     WPCSL_FULL Gamma (mkhoare p (new x e) q)
 | wpcf_dispose (p ps: assert) (x: V):
     asub_heap_clear p x = ps ->

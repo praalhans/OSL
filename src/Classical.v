@@ -1596,6 +1596,164 @@ intros. destruct H. induction H.
   apply g. apply g0. assumption.
 Qed.
 
+Corollary WPCSL_soundness_new_util (p q: assert) (x y: V) (e: expr):
+  ~ In y (x :: aoccur p ++ aoccur q ++ evar e) ->
+  strong_partial_correct (mkhoare p (comp (basic y e) (new x y)) q) ->
+  strong_partial_correct (mkhoare p (new x e) q).
+intros. intro; intros.
+unfold strong_partial_correct in H0.
+split.
+intro. inversion H2.
+intros.
+apply H0 in H1; destruct H1.
+apply acond with (t := store_update s' y (e s)).
+{ intro. intro.
+  unfold store_update.
+  destruct (Nat.eq_dec y x0).
+  exfalso. rewrite <- e0 in H4.
+  apply H. right. apply in_or_app. right. apply in_or_app. left. apply in_or_app. auto.
+  reflexivity. }
+apply H3.
+eapply step_comp.
+apply step_basic.
+inversion H2.
+assert (e s = y (store_update s y (e s))).
+simpl. rewrite store_update_lookup_same. reflexivity.
+rewrite H11 at 2.
+rewrite store_update_swap.
+apply step_new. assumption.
+intro.
+apply H. rewrite H12. left. auto.
+Qed.
+
+Corollary WPCSL_soundness_skip (p: assert):
+  strong_partial_correct (mkhoare p skip p).
+intro; intros. split.
+intro. inversion H0.
+intros. inversion H0. rewrite <- H4. rewrite <- H5. assumption.
+Qed.
+
+Corollary WPCSL_soundness_diverge (p: assert):
+  strong_partial_correct (mkhoare p diverge false).
+intro; intros. split.
+intro. inversion H0.
+intros. inversion H0.
+Qed.
+
+Corollary WPCSL_soundness_comp (p q r: assert) (S1 S2: program):
+  strong_partial_correct (mkhoare p S1 r) ->
+  strong_partial_correct (mkhoare r S2 q) ->
+  strong_partial_correct (mkhoare p (comp S1 S2) q).
+intros; intro; intros. split.
+intro. inversion H2.
+unfold strong_partial_correct in H.
+apply H in H1; destruct H1.
+apply H1; auto.
+apply H in H1; destruct H1.
+apply H9 in H6.
+apply H0 in H6; destruct H6.
+apply H6; auto.
+intros.
+inversion H2.
+apply H in H1; destruct H1.
+apply H11 in H6.
+apply H0 in H6; destruct H6.
+apply H12 in H10. auto.
+Qed.
+
+Corollary WPCSL_soundness_ite (p q: assert) (g: guard) (S1 S2: program):
+  strong_partial_correct (mkhoare (land p g) S1 q) ->
+  strong_partial_correct (mkhoare (land p (lnot g)) S2 q) ->
+  strong_partial_correct (mkhoare p (ite g S1 S2) q).
+intros; intro; intros. split.
+intro.
+inversion H2.
+assert (satisfy h s (land p g)).
+{ rewrite satisfy_land.
+  split; auto. }
+apply H in H11; destruct H11. apply H11; auto.
+assert (satisfy h s (land p (lnot g))).
+{ rewrite satisfy_land.
+  split; auto.
+  rewrite satisfy_lnot; intro.
+  simpl in H11. rewrite H11 in H9. inversion H9. }
+apply H0 in H11; destruct H11. apply H11; auto.
+intros.
+inversion H2.
+assert (satisfy h s (land p g)).
+{ rewrite satisfy_land.
+  split; auto. }
+apply H in H11; destruct H11.
+apply H12 in H10; auto.
+assert (satisfy h s (land p (lnot g))).
+{ rewrite satisfy_land.
+  split; auto.
+  rewrite satisfy_lnot; intro.
+  simpl in H11. rewrite H11 in H9. inversion H9. }
+apply H0 in H11; destruct H11.
+apply H12 in H10; auto.
+Qed.
+
+Corollary WPCSL_soundness_while (p: assert) (g: guard) (S1: program):
+  strong_partial_correct (mkhoare (land p g) S1 p) ->
+  strong_partial_correct (mkhoare p (while g S1) (land p (lnot g))).
+intros; intro; intros. split.
+- rewrite while_approx.
+  intro. destruct H1.
+  generalize dependent s. generalize dependent h.
+  induction x; intros; simpl in H1; inversion H1.
+  inversion H9.
+  assert (satisfy h s (land p g)).
+  { rewrite satisfy_land.
+    split; auto. }
+  apply H in H15; destruct H15.
+  apply H15; auto.
+  apply IHx with (h := h') (s := s').
+  assert (satisfy h s (land p g)).
+  { rewrite satisfy_land.
+    split; auto. }
+  apply H in H16; destruct H16. apply H17. assumption.
+  assumption.
+  inversion H9.
+- intros.
+  rewrite while_approx in H1.
+  destruct H1.
+  generalize dependent s.
+  generalize dependent h.
+  generalize dependent s'.
+  generalize dependent h'.
+  induction x; intros;
+  simpl in H1; inversion H1.
+  inversion H9.
+  apply IHx in H17. assumption.
+  apply H in H13. assumption.
+  rewrite satisfy_land. split; auto.
+  inversion H9.
+  rewrite <- H13. rewrite <- H14.
+  rewrite satisfy_land. split; auto.
+  rewrite satisfy_lnot; intro.
+  simpl in H11. rewrite H11 in H8. inversion H8.
+Qed.
+
+Theorem WPCSL_FULL_soundness (Gamma: assert -> Prop) (O: forall p, Gamma p -> validity p):
+  forall pSq, inhabited (WPCSL_FULL Gamma pSq) -> strong_partial_correct pSq.
+intros. destruct H. induction H.
+- apply WPCSL_soundness_basic; assumption.
+- apply WPCSL_soundness_lookup; assumption.
+- apply WPCSL_soundness_mutation; assumption.
+- apply WPCSL_soundness_new; assumption.
+- apply WPCSL_soundness_new_util with (y := y); assumption.
+- apply WPCSL_soundness_dispose; assumption.
+- apply WPCSL_soundness_skip; assumption.
+- apply WPCSL_soundness_diverge; assumption.
+- apply WPCSL_soundness_comp with (r := r); assumption.
+- apply WPCSL_soundness_ite; assumption.
+- apply WPCSL_soundness_while; assumption.
+- apply O in g. apply O in g0.
+  eapply soundness_conseq.
+  apply g. apply g0. assumption.
+Qed.
+
 Corollary WPCSL_weakest_basic (q p: assert) (x: V) (e: expr):
   strong_partial_correct (mkhoare p (basic x e) q) ->
   forall qs, asub q x e = Some qs ->
