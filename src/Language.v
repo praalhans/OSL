@@ -1551,6 +1551,30 @@ Inductive WPCSL (Gamma: assert -> Prop): hoare -> Set :=
     Gamma (limp pp p) -> WPCSL Gamma (mkhoare p x q) -> Gamma (limp q qq) ->
     WPCSL Gamma (mkhoare pp x qq).
 
+(* ======================================================================= *)
+(* GLOBAL WEAKEST PRECONDITION AXIOMATIZATION USING SEPARATING CONNECTIVES *)
+(* ======================================================================= *)
+
+Inductive WPCSL_SEP (Gamma: assert -> Prop): hoare -> Set :=
+| wpcs_basic (p ps: assert) (x: V) (e: expr):
+    asub p x e = Some ps ->
+    WPCSL_SEP Gamma (mkhoare ps (basic x e) p)
+| wpcs_lookup (p ps: assert) (x y: V) (e: expr):
+    ~In y (x :: aoccur p ++ evar e) ->
+    asub p x y = ps ->
+    WPCSL_SEP Gamma (mkhoare (lexists y (land (hasval e y) ps)) (lookup x e) p)
+| wpcs_mutation (p: assert) (x: V) (e: expr):
+    WPCSL_SEP Gamma (mkhoare (sand (pointstodash x) (simp (pointsto x e) p)) (mutation x e) p)
+| wpcs_new (p ps: assert) (x y: V) (e: expr):
+    ~In y (x :: aoccur p ++ evar e) ->
+    asub p x y = ps ->
+    WPCSL_SEP Gamma (mkhoare (lforall y (simp (pointsto y e) ps)) (new x e) p)
+| wpcs_dispose (p: assert) (x: V):
+    WPCSL_SEP Gamma (mkhoare (sand (pointstodash x) p) (dispose x) p)
+| wpcs_conseq (p pp q qq: assert) (x: program):
+    Gamma (limp pp p) -> WPCSL_SEP Gamma (mkhoare p x q) -> Gamma (limp q qq) ->
+    WPCSL_SEP Gamma (mkhoare pp x qq).
+
 (* ========================================================================== *)
 (* STRONGEST POSTCONDITION AXIOMATIZATION (SP-CSL), SEE FIGURE 6 IN THE PAPER *)
 (* ========================================================================== *)

@@ -277,6 +277,80 @@ split; intro.
   apply fresh_notIn.
 Qed.
 
+Proposition satisfy_pointstodash (h: heap) (s: store) (e1: expr):
+  satisfy h s (pointstodash e1) <->
+  dom h (eval e1 s) /\ forall z, z <> eval e1 s -> ~dom h z.
+split; intro.
+- unfold pointstodash in H.
+  split.
+  + rewrite <- satisfy_hasvaldash.
+    eapply satisfy_lexists_elim.
+    apply H. intros.
+    rewrite satisfy_pointsto in H0; destruct H0.
+    simpl in H0.
+    rewrite store_update_lookup_same in H0.
+    rewrite satisfy_hasvaldash.
+    rewrite dom_spec. intro.
+    pose proof (econd e1 s (store_update s (fresh (evar e1)) n)).
+    rewrite H3 in H2.
+    rewrite H2 in H0.
+    inversion H0.
+    intro; intro.
+    unfold store_update.
+    destruct (Nat.eq_dec (fresh (evar e1)) x); auto.
+    exfalso.
+    rewrite <- e in H4.
+    eapply fresh_notIn. apply H4.
+  + intros; intro.
+    cut (satisfy h s false). intro. simpl in H2. inversion H2.
+    eapply satisfy_lexists_elim.
+    apply H.
+    clear H. intros.
+    rewrite satisfy_pointsto in H; destruct H.
+    exfalso.
+    eapply H2; [|apply H1].
+    intro.
+    pose proof (econd e1 s (store_update s (fresh (evar e1)) n)).
+    rewrite <- H4 in H3.
+    apply H0; auto.
+    intro; intro.
+    unfold store_update.
+    destruct (Nat.eq_dec (fresh (evar e1)) x); auto.
+    exfalso.
+    rewrite <- e in H5.
+    eapply fresh_notIn. apply H5.
+- destruct H.
+  unfold pointstodash.
+  rewrite dom_spec in H.
+  remember (h (e1 s)); destruct o.
+  2: exfalso; apply H; auto.
+  apply satisfy_lexists_intro with (n := z).
+  apply satisfy_pointsto.
+  split.
+  + simpl.
+    rewrite store_update_lookup_same.
+    pose proof (econd e1 s (store_update s (fresh (evar e1)) z)).
+    rewrite <- H1.
+    symmetry. apply Heqo.
+    intro; intro.
+    unfold store_update.
+    destruct (Nat.eq_dec (fresh (evar e1)) x); auto.
+    exfalso.
+    rewrite <- e in H2.
+    eapply fresh_notIn. apply H2.
+  + intros.
+    apply H0.
+    pose proof (econd e1 s (store_update s (fresh (evar e1)) z)).
+    rewrite H2.
+    apply H1.
+    intro; intro.
+    unfold store_update.
+    destruct (Nat.eq_dec (fresh (evar e1)) x); auto.
+    exfalso.
+    rewrite <- e in H3.
+    eapply fresh_notIn. apply H3.
+Qed.
+
 (* ============ *)
 (* BOX MODALITY *)
 (* ============ *)
@@ -1909,6 +1983,202 @@ Corollary WPCSL_soundness_completeness:
 intros. split.
 apply WPCSL_soundness; auto.
 apply WPCSL_completeness; auto.
+Qed.
+
+(* =================================== *)
+(* SOUNDNESS AND COMPLETENESS OF       *)
+(* WEAKEST PRECONDITION AXIOMATIZATION *)
+(* USING SEPARATING CONNECTIVES        *)
+(* =================================== *)
+
+Proposition soundness_mutation_sep_p1 (h h1 h2: heap) (k v: Z):
+  Partition h h1 h2 ->
+  dom h1 k /\ (forall z : Z, z <> k -> ~ dom h1 z) ->
+  Partition (heap_update h k v) h2 (heap_update heap_empty k v).
+intros.
+destruct H0.
+cut (~dom h2 k). intro.
+pose proof (Partition_intro1 h2 (heap_update heap_empty k v)).
+destruct H3.
+intros; intro. destruct H3.
+{ destruct (Z.eq_dec k k0).
+  apply H2. rewrite e. assumption.
+  rewrite heap_update_dom2 in H4; auto.
+  rewrite dom_spec in H4.
+  apply H4. apply heap_empty_spec. }
+cut (x = heap_update h k v). intro.
+rewrite H4 in H3. auto.
+apply heap_ext; intro.
+destruct (Z.eq_dec n k).
+rewrite e. rewrite heap_update_spec1.
+erewrite Partition_spec2; [|apply H3|].
+apply heap_update_spec1.
+apply heap_update_dom1.
+rewrite heap_update_spec2; auto.
+destruct (dom_dec h2 n).
+erewrite Partition_spec1; [|apply H3|].
+symmetry.
+eapply Partition_spec2. apply H.
+auto. auto.
+assert (~dom h1 n).
+apply H1 in n0. auto.
+erewrite (Partition_spec3 h); [|apply H| |]; auto.
+cut (~dom (heap_update heap_empty k v) n). intro.
+eapply Partition_spec3. apply H3. auto. auto.
+intro.
+rewrite heap_update_dom2 in H6; auto.
+rewrite dom_spec in H6. apply H6. apply heap_empty_spec.
+intro.
+eapply Partition_spec4. apply H. split. apply H0. apply H2.
+Qed.
+
+Corollary WPCSL_soundness_mutation_sep (p: assert) (x: V) (e: expr):
+  strong_partial_correct (mkhoare (sand (pointstodash x) (simp (pointsto x e) p)) (mutation x e) p).
+intro; intros. split.
+- intro. inversion H0.
+  cut (satisfy h s false). intro. simpl in H6. inversion H6.
+  eapply satisfy_sand_elim. apply H. intros.
+  rewrite satisfy_pointstodash in H7; destruct H7.
+  exfalso. apply H2.
+  eapply Partition_dom_inv_left.
+  apply H6.
+  simpl in H7. auto.
+- intros. inversion H0.
+  eapply satisfy_sand_elim. apply H. intros. clear H.
+  rewrite satisfy_simp in H10.
+  rewrite <- H7 in *.
+  clear dependent s'.
+  rewrite <- H6 in *.
+  clear dependent h'.
+  clear dependent x0.
+  clear dependent e0.
+  clear dependent h0.
+  clear dependent s0.
+  apply H10 with (h' := heap_update heap_empty (s x) (e s)).
+  rewrite satisfy_pointstodash in H9.
+  eapply soundness_mutation_sep_p1.
+  apply H8. apply H9.
+  rewrite satisfy_pointsto. split.
+  rewrite heap_update_spec1. reflexivity.
+  intros.
+  rewrite heap_update_dom2.
+  rewrite dom_spec.
+  intro. rewrite heap_empty_spec in H1.
+  apply H1; auto.
+  auto.
+Qed.
+
+Corollary WPCSL_soundness_allocation_sep (p ps: assert) (x y: V) (e: expr):
+  ~ In y (x :: aoccur p ++ evar e) ->
+  asub p x y = ps ->
+  strong_partial_correct (mkhoare (lforall y (simp (pointsto y e) ps)) (new x e) p).
+intro; intros. split.
+intro. inversion H2.
+intros. inversion H2.
+rewrite <- H8 in *.
+rewrite <- H9 in *.
+clear dependent h'; clear dependent s';
+clear dependent x0; clear dependent e0;
+clear dependent h0; clear dependent s0.
+rewrite satisfy_lforall in H1.
+specialize H1 with n.
+rewrite satisfy_simp in H1.
+apply acond with (t := store_update (store_update s y n) x (y (store_update s y n))).
+{ intro. intros.
+  simpl. rewrite store_update_lookup_same.
+  unfold store_update.
+  destruct (Nat.eq_dec x x0); auto.
+  destruct (Nat.eq_dec y x0).
+  rewrite <- e0 in H3.
+  exfalso. apply H.
+  right. apply in_or_app. left. apply in_or_app. auto.
+  auto. }
+rewrite <- store_substitution_lemma; [|apply H0].
+apply H1 with (h' := heap_update heap_empty n (e s)).
+pose proof (Partition_empty h).
+apply Partition_comm in H3.
+apply heap_update_substitution_lemma_p4 with (k := n) (v := e s) in H3.
+apply Partition_comm. auto. auto.
+rewrite satisfy_pointsto. split.
+simpl.
+rewrite store_update_lookup_same.
+rewrite heap_update_spec1.
+cut (e s = e (store_update s y n)). intro. rewrite H3; reflexivity.
+apply econd. intro. intro.
+unfold store_update.
+destruct (Nat.eq_dec y x0); auto.
+exfalso. apply H. rewrite e0.
+right. apply in_or_app. right. auto.
+intros.
+simpl in H3.
+rewrite store_update_lookup_same in H3.
+rewrite heap_update_dom2.
+rewrite dom_spec. rewrite heap_empty_spec. auto.
+auto.
+Qed.
+
+Corollary WPCSL_soundness_dispose_sep (p: assert) (x: V):
+  strong_partial_correct (mkhoare (sand (pointstodash x) p) (dispose x) p).
+intro; intros. split.
+- intro. inversion H0.
+  cut (satisfy h s false). intro. inversion H5.
+  eapply satisfy_sand_elim. apply H. clear H; intros.
+  rewrite satisfy_pointstodash in H5. destruct H5.
+  exfalso. apply H3. simpl in H5.
+  eapply Partition_dom_inv_left. apply H. auto.
+- intros. inversion H0.
+  rewrite <- H5 in *.
+  rewrite <- H6 in *.
+  clear dependent h'; clear dependent s'.
+  clear dependent x0; clear dependent h0; clear dependent s0.
+  clear H0.
+  eapply satisfy_sand_elim. apply H. clear H; intros.
+  cut (h2 = heap_clear h (s x)). intro. rewrite <- H2. auto.
+  apply heap_ext; intro.
+  rewrite satisfy_pointstodash in H0; destruct H0.
+  simpl in H0, H2.
+  destruct (Z.eq_dec n (s x)).
+  rewrite <- e.
+  + rewrite heap_clear_spec1.
+    cut (~dom h2 n). intro. rewrite dom_spec in H4.
+    destruct (h2 n); auto. exfalso; apply H4. intro. inversion H5.
+    eapply Partition_dom_right1.
+    apply H. rewrite e. auto.
+  + rewrite heap_clear_spec2; auto.
+    destruct (dom_dec h n).
+    cut (dom h2 n). intro.
+    symmetry. eapply Partition_spec2.
+    apply H. auto.
+    destruct (dom_dec h2 n); auto.
+    exfalso.
+    Search Partition dom.
+    eapply Partition_dom_split in H4; [|apply H].
+    destruct H4.
+    eapply H2; [|apply H4]; auto.
+    apply H5; auto.
+    cut (~dom h2 n). intro.
+    rewrite dom_spec in H4, H5.
+    destruct (h2 n).
+    exfalso; apply H5. intro. inversion H6.
+    destruct (h n).
+    exfalso; apply H4. intro. inversion H6.
+    auto.
+    intro.
+    apply H4. eapply Partition_dom_inv_right.
+    apply H. auto.
+Qed.
+
+Theorem WPCSL_SEP_soundness (Gamma: assert -> Prop) (O: forall p, Gamma p -> validity p):
+  forall pSq, inhabited (WPCSL_SEP Gamma pSq) -> strong_partial_correct pSq.
+intros. destruct H. induction H.
+- apply WPCSL_soundness_basic; auto.
+- apply WPCSL_soundness_lookup; auto.
+- apply WPCSL_soundness_mutation_sep.
+- apply WPCSL_soundness_allocation_sep; auto.
+- apply WPCSL_soundness_dispose_sep.
+- apply O in g. apply O in g0.
+  eapply soundness_conseq.
+  apply g. apply g0. assumption.
 Qed.
 
 (* =============================================== *)
