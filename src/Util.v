@@ -1,6 +1,6 @@
-(* Copyright 2022 <anonymized> *)
+(* Copyright 2023 <anonymized> *)
 
-(* ON SEPARATION LOGIC *)
+(* Title: Separation Logic in the Light of Substitutions *)
 (* Author: <anonymized> *)
 
 Require Export FunctionalExtensionality.

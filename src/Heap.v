@@ -1,6 +1,6 @@
-(* Copyright 2022 <anonymized> *)
+(* Copyright 2023 <anonymized> *)
 
-(* ON SEPARATION LOGIC *)
+(* Title: Separation Logic in the Light of Substitutions *)
 (* Author: <anonymized> *)
 
 Require Export OnSeparationLogic.Util.
@@ -50,8 +50,6 @@ Axiom Partition_spec2: forall h h1 h2, Partition h h1 h2 -> forall k, dom h2 k -
 Axiom Partition_spec3: forall h h1 h2, Partition h h1 h2 -> forall k, ~dom h1 k -> ~dom h2 k -> hfun h k = None.
 Axiom Partition_spec4: forall h h1 h2, Partition h h1 h2 -> forall k, ~(dom h1 k /\ dom h2 k).
 Axiom Partition_intro1: forall h1 h2, (forall k, ~(dom h1 k /\ dom h2 k)) -> exists h, Partition h h1 h2.
-(* Needed for intuitionistic semantics: *)
-Axiom Partition_intro2: forall h h1, (forall k, dom h1 k -> hfun h k = hfun h1 k) -> exists h2, Partition h h1 h2.
 
 End HeapSig.
 
