@@ -196,6 +196,13 @@ apply H in H1.
 apply H0; auto.
 Qed.
 
+Proposition eq_restr_store_update (s t: store) (x: V) (v: Z) (xs: list V):
+  eq_restr s t xs -> eq_restr (store_update s x v) (store_update t x v) xs.
+intros. intro; intro.
+unfold store_update. destruct (Nat.eq_dec x x0). reflexivity.
+apply H. auto.
+Qed.
+
 (* ====================== *)
 (* EXPRESSIONS AND GUARDS *)
 (* ====================== *)
@@ -617,7 +624,9 @@ Definition csimp (p q: cassert): cassert :=
 
 (* Abbreviations *)
 
-Definition clnot (p: cassert): cassert := (climp p (ctest false)).
+Definition cltrue: cassert := (ctest true).
+Definition clfalse: cassert := (ctest false).
+Definition clnot (p: cassert): cassert := (climp p clfalse).
 Definition clequiv (p q: cassert): cassert := (cland (climp p q) (climp q p)).
 Definition chasvaldash (e: expr): cassert :=
   let y := fresh (evar e) in clexists y (chasval e y).
@@ -749,7 +758,6 @@ Fixpoint pvar (p: program): list V :=
   | ite g S1 S2 => gvar g ++ pvar S1 ++ pvar S2
   | while g S1 => gvar g ++ pvar S1
   end.
-
 
 (* ================================================ *)
 (* SEMANTICS OF PROGRAMS, SEE FIGURE 1 IN THE PAPER *)
@@ -913,3 +921,279 @@ inversion H13. assumption.
 inversion H6.
 inversion H.
 Qed.
+
+(* The invariant annotation does not affect execution. *)
+(* Proposition while_inv_swap (i j: cassert) (g: guard) (S1: program):
+  forall h s o,
+    bigstep (while i g S1) (h, s) o ->
+    bigstep (while j g S1) (h, s) o.
+intros.
+remember (while i g S1).
+induction H; try inversion Heqp.
+- eapply step_while_true.
+  rewrite <- H4. apply H.
+  rewrite <- H5. apply H0.
+  apply IHbigstep2.
+  apply Heqp.
+- eapply step_while_false.
+  rewrite <- H2. apply H.
+- eapply step_while_fail.
+  rewrite <- H3. apply H.
+  rewrite <- H4. apply H0.
+Qed. *)
+
+(* ================ *)
+(* PROGRAM MODALITY *)
+(* ================ *)
+
+Proposition bigstep_cond (S1: program) (p: heap * store) (o: option (heap * store)):
+  bigstep S1 p o ->
+  forall xs, (forall x, In x (pvar S1) -> In x xs) ->
+  forall h s, (h, s) = p ->
+  forall t, eq_restr s t xs ->
+  (forall h' s', Some (h', s') = o ->
+    exists t', eq_restr s' t' xs /\ bigstep S1 (h, t) (Some (h', t'))) /\
+  (None = o ->
+    bigstep S1 (h, t) None).
+intro.
+induction H; intros xs G h0 s0 G1 t G3; inversion G1; clear G1;
+(split; [intros h'0 s'0 G2; inversion G2; clear G2 | intro G2; inversion G2; clear G2 ]).
+- rewrite H1 in G3.
+  exists (store_update t x (e t)). split.
+  + intro; intro.
+    unfold store_update.
+    destruct (Nat.eq_dec x x0).
+    apply econd.
+    eapply eq_restr_incl; [|apply G3].
+    intros. apply G. simpl; auto.
+    apply G3; auto.
+  + apply step_basic.
+- exists (store_update t x v). split.
+  + intro; intro.
+    rewrite <- H2.
+    unfold store_update.
+    destruct (Nat.eq_dec x x0); auto.
+  + apply step_lookup.
+    pose proof (econd e s t).
+    rewrite <- H0; auto.
+    rewrite <- H2.
+    eapply eq_restr_incl; [|apply G3].
+    intros. apply G. simpl; auto.
+- apply step_lookup_fail.
+  erewrite <- econd. apply H.
+  rewrite <- H2.
+  eapply eq_restr_incl; [|apply G3].
+  intros. apply G. simpl. auto.
+- exists t. split.
+  + rewrite <- H2. auto.
+  + assert (s x = t x).
+    { rewrite H2 in G3.
+      apply G3. apply G. simpl. auto. }
+    assert (e s = e t).
+    { apply econd.
+      eapply eq_restr_incl; [ | rewrite H2 in G3; apply G3].
+      intros. apply G. simpl. auto. }
+    rewrite H0.
+    rewrite H5.
+    apply step_mutation.
+    rewrite <- H0. assumption.
+- apply step_mutation_fail.
+  assert (s x = t x).
+  rewrite H2 in G3. apply G3.
+  apply G. simpl. auto.
+  rewrite <- H0. auto.
+- exists (store_update t x n).
+  split. rewrite H2 in G3.
+  apply eq_restr_store_update; assumption.
+  assert (e s = e t).
+  { apply econd.
+    eapply eq_restr_incl; [ | rewrite H2 in G3; apply G3].
+    intros. apply G. simpl. auto. }
+  rewrite H0.
+  apply step_new. assumption.
+- exists t. split.
+  rewrite H2 in G3. auto.
+  assert (s x = t x).
+  { rewrite H2 in G3.
+    apply G3. apply G. simpl. auto. }
+  rewrite H0.
+  apply step_dispose.
+  rewrite <- H0. assumption.
+- apply step_dispose_fail.
+  assert (s x = t x).
+  rewrite H2 in G3. apply G3.
+  apply G. simpl. auto.
+  rewrite <- H0. auto.
+- exists t. split.
+  rewrite <- H1. auto.
+  apply step_skip.
+- destruct IHbigstep1 with (xs := xs) (h := h) (s := s) (t := t); auto.
+  intros. apply G. simpl. apply in_or_app; auto. rewrite <- H3. auto.
+  edestruct H1. reflexivity. destruct H7.
+  destruct IHbigstep2 with (xs := xs) (h := h') (s := s') (t := x); auto.
+  intros. apply G. simpl. apply in_or_app; auto.
+  edestruct H9. reflexivity. destruct H11.
+  exists x0. split; auto.
+  eapply step_comp.
+  apply H8.
+  apply H12.
+- apply step_comp_fail1.
+  destruct IHbigstep with (xs := xs) (h := h) (s := s) (t := t); auto.
+  intros. apply G. simpl. apply in_or_app; auto. rewrite <- H2. auto.
+- destruct IHbigstep1 with (xs := xs) (h := h) (s := s) (t := t); auto.
+  intros. apply G. simpl. apply in_or_app; auto. rewrite <- H3. auto.
+  edestruct H1. reflexivity. destruct H5.
+  eapply step_comp_fail2.
+  apply H6.
+  destruct IHbigstep2 with (xs := xs) (h := h') (s := s') (t := x); auto.
+  intros. apply G. simpl. apply in_or_app; auto.
+- destruct o. destruct p.
+  destruct IHbigstep with (xs := xs) (h := h) (s := s) (t := t); auto.
+  intros. apply G. simpl. apply in_or_app. right. apply in_or_app; auto.
+  rewrite <- H3; auto.
+  destruct H4 with (h' := h1) (s' := s1); auto. destruct H6.
+  inversion H1.
+  exists x. split; auto.
+  apply step_ite_true; auto.
+  rewrite H3 in G3.
+  rewrite <- gcond with (s := s); auto.
+  eapply eq_restr_incl; [|apply G3]. intros.
+  apply G. simpl. apply in_or_app; auto.
+  inversion H1.
+- destruct o. inversion H1.
+  destruct IHbigstep with (xs := xs) (h := h) (s := s) (t := t); auto.
+  intros. apply G. simpl. apply in_or_app. right. apply in_or_app; auto.
+  rewrite <- H3; auto.
+  rewrite H3 in G3.
+  apply step_ite_true.
+  rewrite <- gcond with (s := s); auto.
+  eapply eq_restr_incl; [|apply G3]. intros.
+  apply G. simpl. apply in_or_app; auto.
+  apply H5. auto.
+- destruct o. destruct p.
+  destruct IHbigstep with (xs := xs) (h := h) (s := s) (t := t); auto.
+  intros. apply G. simpl. apply in_or_app. right. apply in_or_app; auto.
+  rewrite <- H3; auto.
+  destruct H4 with (h' := h1) (s' := s1); auto. destruct H6.
+  inversion H1.
+  exists x. split; auto.
+  apply step_ite_false; auto.
+  rewrite H3 in G3.
+  rewrite <- gcond with (s := s); auto.
+  eapply eq_restr_incl; [|apply G3]. intros.
+  apply G. simpl. apply in_or_app; auto.
+  inversion H1.
+- destruct o. inversion H1.
+  destruct IHbigstep with (xs := xs) (h := h) (s := s) (t := t); auto.
+  intros. apply G. simpl. apply in_or_app. right. apply in_or_app; auto.
+  rewrite <- H3; auto.
+  rewrite H3 in G3.
+  apply step_ite_false.
+  rewrite <- gcond with (s := s); auto.
+  eapply eq_restr_incl; [|apply G3]. intros.
+  apply G. simpl. apply in_or_app; auto.
+  apply H5. auto.
+- destruct o; inversion H2. destruct p; inversion H6.
+  destruct IHbigstep1 with (xs := xs) (h := h) (s := s) (t := t); auto.
+  intros. apply G. simpl. apply in_or_app; auto. rewrite H4 in G3; auto.
+  destruct H5 with (h' := h') (s' := s'); auto. destruct H10.
+  destruct IHbigstep2 with (xs := xs) (h := h') (s := s') (t := x); auto.
+  destruct H12 with (h' := h1) (s' := s1); auto. destruct H14.
+  exists x0.
+  split; auto.
+  eapply step_while_true.
+  rewrite H4 in G3.
+  rewrite <- gcond with (s := s); auto.
+  intro; intro. apply G3. apply G. simpl. apply in_or_app; auto.
+  apply H11.
+  auto.
+- destruct o; inversion H2.
+  destruct IHbigstep1 with (xs := xs) (h := h) (s := s) (t := t); auto.
+  intros. apply G. simpl. apply in_or_app; auto. rewrite H4 in G3; auto.
+  destruct H5 with (h' := h') (s' := s'); auto. destruct H7.
+  destruct IHbigstep2 with (xs := xs) (h := h') (s := s') (t := x); auto.
+  eapply step_while_true.
+  erewrite <- gcond. apply H.
+  rewrite H4 in G3.
+  eapply eq_restr_incl; [|apply G3].
+  intros. apply G. simpl.
+  apply in_or_app. auto.
+  apply H8.
+  apply H10. auto.
+- exists t. split. rewrite <- H2. assumption.
+  apply step_while_false.
+  erewrite <- gcond. apply H.
+  rewrite H2 in G3.
+  eapply eq_restr_incl; [|apply G3].
+  intros. apply G. simpl.
+  apply in_or_app. auto.
+- destruct IHbigstep with (xs := xs) (h := h) (s := s) (t := t); auto.
+  intros. apply G. simpl. apply in_or_app; auto. rewrite H3 in G3; auto.
+  apply step_while_fail.
+  erewrite <- gcond. apply H.
+  rewrite H3 in G3.
+  eapply eq_restr_incl; [|apply G3].
+  intros. apply G. simpl.
+  apply in_or_app. auto.
+  apply H4. auto.
+Qed.
+
+Proposition cwlp_cond (S1: program) (q: cassert):
+  forall (h : heap) (s t : store),
+   eq_restr s t (pvar S1 ++ cvar q) ->
+   (~ bigstep S1 (h, s) None /\ forall (h' : heap) (s' : store),
+      bigstep S1 (h, s) (Some (h', s')) -> q (h', s')) <->
+   (~ bigstep S1 (h, t) None /\ forall (h' : heap) (s' : store),
+      bigstep S1 (h, t) (Some (h', s')) -> q (h', s')).
+intros; split; intro; destruct H0.
+- split.
+  + intro.
+    pose proof (bigstep_cond S1 (h, t) None H2 (pvar S1 ++ cvar q)).
+    destruct H3 with (h := h) (s := t) (t := s); auto.
+    intros. apply in_or_app; auto.
+    apply eq_restr_comm. apply H.
+  + intros.
+    pose proof (bigstep_cond S1 (h, t) (Some (h', s')) H2 (pvar S1 ++ cvar q)).
+    destruct H3 with (h := h) (s := t) (t := s); auto.
+    intros. apply in_or_app; auto.
+    apply eq_restr_comm. apply H.
+    destruct H4 with (h' := h') (s' := s'); auto. destruct H6.
+    rewrite ccond with (t := x).
+    apply H1. assumption.
+    eapply eq_restr_incl; [|apply H6].
+    intros. apply in_or_app. auto.
+- split.
+  + intro.
+    pose proof (bigstep_cond S1 (h, s) None H2 (pvar S1 ++ cvar q)).
+    destruct H3 with (h := h) (s := s) (t := t); auto.
+    intros. apply in_or_app; auto.
+  + intros.
+    pose proof (bigstep_cond S1 (h, s) (Some (h', s')) H2 (pvar S1 ++ cvar q)).
+    destruct H3 with (h := h) (s := s) (t := t); auto.
+    intros. apply in_or_app; auto.
+    destruct H4 with (h' := h') (s' := s'); auto. destruct H6.
+    rewrite ccond with (t := x).
+    apply H1. assumption.
+    eapply eq_restr_incl; [|apply H6].
+    intros. apply in_or_app. auto.
+Qed.
+Proposition cwlp_stable (S1: program) (q: cassert):
+  forall (h : heap) (s : store),
+   ~ ~ (~ bigstep S1 (h, s) None /\ forall (h' : heap) (s' : store),
+      bigstep S1 (h, s) (Some (h', s')) -> q (h', s')) ->
+   (~ bigstep S1 (h, s) None /\ forall (h' : heap) (s' : store),
+      bigstep S1 (h, s) (Some (h', s')) -> q (h', s')).
+intros. split.
+intro. apply H. intro. destruct H1.
+apply H1. assumption.
+intros. apply cstable. intro.
+apply H. intro. destruct H2.
+apply H3 in H0.
+apply H1. assumption.
+Qed.
+Definition cwlp (S1: program) (q: cassert): cassert :=
+  mkcassert (fun '(h, s) => ~bigstep S1 (h, s) None /\
+      forall h' s', bigstep S1 (h, s) (Some (h', s')) -> q (h', s'))
+    (pvar S1 ++ cvar q) (cwlp_cond S1 q) (cwlp_stable S1 q).
+
+
