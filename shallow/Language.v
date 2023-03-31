@@ -166,6 +166,49 @@ Definition store := V -> Z.
 Definition store_update (s: store) (x: V) (v: Z): store :=
   fun y => if Nat.eq_dec x y then v else s y.
 
+Proposition store_update_lookup_same (s: store) (x: V) (v: Z):
+  store_update s x v x = v.
+unfold store_update.
+destruct (Nat.eq_dec x x).
+reflexivity.
+exfalso. apply n. reflexivity.
+Qed.
+
+Proposition store_update_lookup_diff (s: store) (x x': V) (v: Z):
+  x <> x' -> store_update s x v x' = s x'.
+intros. unfold store_update.
+destruct (Nat.eq_dec x x').
+exfalso. apply H; assumption.
+reflexivity.
+Qed.
+
+Proposition store_update_id (s: store) (x: V):
+  store_update s x (s x) = s.
+apply functional_extensionality; intro.
+unfold store_update.
+destruct (Nat.eq_dec x x0).
+rewrite e; reflexivity.
+reflexivity.
+Qed.
+
+Proposition store_update_collapse (s: store) (x: V) (v w: Z):
+  (store_update (store_update s x v) x w) =
+  (store_update s x w).
+apply functional_extensionality; intro z.
+unfold store_update.
+destruct (Nat.eq_dec x z); reflexivity.
+Qed.
+
+Proposition store_update_swap (s: store) (e: Z) (x y: V) (v: Z):
+  x <> y ->
+  (store_update (store_update s x e) y v) =
+  (store_update (store_update s y v) x e).
+intros G; apply functional_extensionality; intro z.
+unfold store_update.
+destruct (Nat.eq_dec y z); destruct (Nat.eq_dec x z); try reflexivity.
+exfalso. apply G. rewrite e0; rewrite e1. reflexivity.
+Qed.
+
 Definition eq_restr (s t: store) (z: list V): Prop :=
   forall (x: V), In x z -> s x = t x.
 
@@ -720,6 +763,10 @@ Definition csub_heap_clear (p: cassert) (x: V): cassert :=
   mkcassert (fun '(h, s) => p (heap_clear h (s x), s))
     (x :: cvar p) (csub_heap_clear_cond p x) (csub_heap_clear_stable p x).
 
+(* Properties of assertions *)
+Definition valid (p: cassert): Prop :=
+  forall (h: heap) (s: store), p (h, s).
+
 (* ===================================== *)
 (* BASIC INSTRUCTIONS AND WHILE PROGRAMS *)
 (* ===================================== *)
@@ -827,6 +874,31 @@ Proposition diverge_empty (h: heap) (s: store):
 intros; intro; inversion H.
 Qed.
 
+Proposition while_unfold (g: guard) (S1: program):
+  forall h s o,
+    bigstep (while g S1) (h, s) o <->
+    bigstep (ite g (comp S1 (while g S1)) skip) (h, s) o.
+intros. split; intros.
+- inversion H.
+  apply step_ite_true; auto.
+  destruct o. destruct p.
+  eapply step_comp. apply H6. apply H7.
+  eapply step_comp_fail2. apply H6. apply H7.
+  apply step_ite_false; auto.
+  apply step_skip.
+  apply step_ite_true; auto.
+  apply step_comp_fail1; auto.
+- inversion H.
+  inversion H7.
+  eapply step_while_true; auto.
+  apply H13. apply H14.
+  eapply step_while_fail; auto.
+  eapply step_while_true; auto.
+  apply H13. apply H14.
+  inversion H7.
+  apply step_while_false; auto.
+Qed.
+
 Fixpoint approx (n: nat) (g: guard) (S1: program): program :=
   match n with
   | O => diverge
@@ -921,26 +993,6 @@ inversion H13. assumption.
 inversion H6.
 inversion H.
 Qed.
-
-(* The invariant annotation does not affect execution. *)
-(* Proposition while_inv_swap (i j: cassert) (g: guard) (S1: program):
-  forall h s o,
-    bigstep (while i g S1) (h, s) o ->
-    bigstep (while j g S1) (h, s) o.
-intros.
-remember (while i g S1).
-induction H; try inversion Heqp.
-- eapply step_while_true.
-  rewrite <- H4. apply H.
-  rewrite <- H5. apply H0.
-  apply IHbigstep2.
-  apply Heqp.
-- eapply step_while_false.
-  rewrite <- H2. apply H.
-- eapply step_while_fail.
-  rewrite <- H3. apply H.
-  rewrite <- H4. apply H0.
-Qed. *)
 
 (* ================ *)
 (* PROGRAM MODALITY *)
