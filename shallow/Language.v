@@ -412,6 +412,148 @@ Definition Partition (h h1 h2: heap): Prop :=
   (forall k, dom h1 k -> h k = h1 k) /\
   (forall k, dom h2 k -> h k = h2 k).
 
+Proposition Partition_comm (h h1 h2: heap):
+  Partition h h1 h2 -> Partition h h2 h1.
+Admitted.
+
+Proposition Partition_dom_right1 (h h1 h2: heap) (x: Z):
+  Partition h h1 h2 -> dom h1 x -> ~dom h2 x.
+Admitted.
+
+Proposition Partition_dom_right2 (h h1 h2: heap) (x: Z):
+  Partition h h1 h2 -> dom h2 x -> ~dom h1 x.
+Admitted.
+
+Proposition Partition_heap_update_split (h h1 h2: heap) (k v: Z):
+  Partition (heap_update h k v) h1 h2 ->
+  (exists h1', Partition h h1' h2 /\ h1 = heap_update h1' k v /\ ~dom h2 k) \/
+  (exists h2', Partition h h1 h2' /\ h2 = heap_update h2' k v /\ ~dom h1 k).
+Admitted.
+
+Proposition Partition_heap_update (h h' h'': heap) (k v: Z):
+  Partition h'' (heap_update h k v) h' ->
+  exists hh, h'' = heap_update hh k v /\ Partition hh h h'.
+Admitted.
+
+Proposition heap_update_Partition (h h1 h2: heap) (k v: Z):
+  Partition h h1 h2 -> ~ dom h2 k ->
+  Partition (heap_update h k v) (heap_update h1 k v) h2.
+Admitted.
+
+Proposition Partition_heap_clear (h h1 h2: heap) (k: Z):
+  Partition (heap_clear h k) h1 h2 ->
+  exists h11 h22, Partition h h11 h22 /\ h1 = heap_clear h11 k /\ h2 = heap_clear h22 k.
+Admitted.
+
+Proposition heap_clear_Partition (h h1 h2: heap) (k: Z):
+  Partition h h1 h2 ->
+  Partition (heap_clear h k) (heap_clear h1 k) (heap_clear h2 k).
+Admitted.
+
+Proposition heap_clear_heap_update_Partition (h h' h'': heap) (k v: Z):
+  Partition h'' h h' -> exists hh, Partition hh (heap_clear h k) (heap_update h' k v).
+Admitted.
+
+Proposition Partition_heap_clear_heap_update (h h' h'' hh: heap) (k v: Z):
+  Partition h'' h h' -> Partition hh (heap_clear h k) (heap_update h' k v) ->
+  hh = heap_update h'' k v.
+Admitted.
+
+Proposition heap_clear_Partition_heap_update (h h' h'': heap) (k v: Z):
+  Partition h'' (heap_clear h k) h' ->
+    (h k = Some v -> Partition (heap_update h'' k v) h (heap_clear h' k)) /\
+    (h k = None -> Partition (heap_clear h'' k) h (heap_clear h' k)).
+intros. split; intros.
+- unfold Partition in *.
+  split; try split; try split; intros.
+  + unfold dom in H1. unfold heap_update in H1. unfold dom. unfold heap_clear.
+    destruct H. unfold dom in H. unfold heap_clear in H.
+    specialize H with k0.
+    destruct (Z.eq_dec k k0).
+    left. intro. rewrite <- e in H3. rewrite H0 in H3. inversion H3.
+    apply H in H1; clear H. auto.
+  + intro. destruct H1.
+    unfold heap_clear in H2. unfold dom in H1, H2.
+    destruct (Z.eq_dec k k0). apply H2; auto.
+    destruct H. destruct H3.
+    eapply H3. unfold dom. unfold heap_clear. split.
+    2: apply H2.
+    destruct (Z.eq_dec k k0). exfalso. apply n. auto. auto.
+  + unfold heap_update.
+    destruct (Z.eq_dec k k0). rewrite <- e. auto.
+    destruct H. destruct H2. destruct H3.
+    pose proof (H3 k0).
+    rewrite H5.
+    unfold heap_clear. destruct (Z.eq_dec k k0).
+    exfalso. apply n. auto. auto.
+    unfold dom. unfold heap_clear.
+    destruct (Z.eq_dec k k0).
+    exfalso. apply n. auto. intro.
+    unfold dom in H1. rewrite H6 in H1.
+    apply H1. auto.
+  + unfold heap_update. unfold heap_clear.
+    unfold dom in H1. unfold heap_clear in H1.
+    destruct (Z.eq_dec k k0).
+    exfalso. apply H1. auto.
+    destruct H. destruct H2. destruct H3.
+    apply H4. unfold dom. auto.
+- unfold Partition in *.
+  split; try split; try split; intros.
+  + unfold dom in H1. unfold heap_clear in H1.
+    destruct (Z.eq_dec k k0). exfalso. apply H1; auto.
+    destruct H. specialize H with k0.
+    fold (dom h'' k0) in H1. apply H in H1. destruct H1.
+    left. unfold dom in H1. unfold heap_clear in H1.
+    unfold dom. destruct (Z.eq_dec k k0). exfalso. apply n; auto.
+    auto. right. unfold dom. unfold heap_clear.
+    destruct (Z.eq_dec k k0). exfalso. apply n. auto.
+    unfold dom in H1. auto.
+  + intro. destruct H1.
+    unfold dom in H1.
+    destruct (Z.eq_dec k k0). rewrite e in H0. apply H1. auto.
+    destruct H. destruct H3. specialize H3 with k0. apply H3. split.
+    unfold dom. unfold heap_clear. destruct (Z.eq_dec k k0).
+    exfalso. apply n. auto. auto.
+    unfold dom. unfold dom in H2. unfold heap_clear in H2.
+    destruct (Z.eq_dec k k0). exfalso. apply n; auto. auto.
+  + unfold heap_clear.
+    destruct (Z.eq_dec k k0). exfalso. unfold dom in H1.
+      apply H1. rewrite <- e. auto.
+    destruct H. destruct H2. destruct H3.
+    rewrite H3.
+    unfold heap_clear.
+    destruct (Z.eq_dec k k0). exfalso. apply n. auto. auto.
+    unfold dom. unfold heap_clear.
+    destruct (Z.eq_dec k k0). exfalso. apply n. auto.
+    unfold dom in H1. auto.
+  + unfold heap_clear. unfold dom in H1. unfold heap_clear in H1.
+    destruct (Z.eq_dec k k0). auto.
+    destruct H. destruct H2. destruct H3. apply H4.
+    unfold dom. auto.
+Qed.
+
+Proposition heap_clear_dom (h: heap) (k: Z):
+  ~dom h k -> heap_clear h k = h.
+Admitted.
+
+Proposition heap_update_cancel (h: heap) (k v z: Z):
+  h k = Some z -> heap_update (heap_update h k v) k z = h.
+intro.
+apply functional_extensionality; intro.
+unfold heap_update.
+destruct (Z.eq_dec k x). rewrite <- e. rewrite H. reflexivity.
+auto.
+Qed.
+
+Proposition heap_update_heap_clear_cancel (h: heap) (k z: Z):
+  h k = Some z -> heap_update (heap_clear h k) k z = h.
+intro.
+apply functional_extensionality; intro.
+unfold heap_update. unfold heap_clear.
+destruct (Z.eq_dec k x). rewrite <- e. rewrite H. reflexivity.
+auto.
+Qed.
+
 (* Assertions are shallow, but finitely based *)
 Record cassert: Type := mkcassert {
   cval: heap * store -> Prop;
