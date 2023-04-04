@@ -505,7 +505,7 @@ simpl. split; intros.
     apply H0 with (h' := h'); auto.
     rewrite <- heap_clear_dom with (k := s x).
     apply heap_clear_Partition. auto. auto.
-  + assert (y <> x). { admit. }
+  + assert (y <> x). { intro. apply H. rewrite H3. left. auto. }
     rewrite store_update_lookup_diff in *; auto.
     rewrite store_update_lookup_same in *.
     rewrite ccond with (t := s).
@@ -515,8 +515,10 @@ simpl. split; intros.
     pose proof (H0 _ _ H4 H2).
     pose proof (Partition_heap_clear_heap_update _ _ _ _ _ _ H1 H4).
     rewrite <- H6. auto.
-    admit.
-    admit.
+    { intro. intro. unfold store_update. destruct (Nat.eq_dec y x0).
+      rewrite <- e in H4. exfalso. apply H. right. apply in_or_app. auto. auto. }
+    { intro. intro. unfold store_update. destruct (Nat.eq_dec y x0).
+      rewrite <- e in H4. exfalso. apply H. right. apply in_or_app. auto. auto. }
 - destruct H0.
   remember (h' (s x)). destruct o.
   + (* Use second part, H3 *)
@@ -529,16 +531,18 @@ simpl. split; intros.
       rewrite store_update_lookup_same in H4.
       rewrite heap_update_cancel in H4.
       apply ccond with (t := store_update s y z); auto.
-      admit.
+      { intro. intro. unfold store_update. destruct (Nat.eq_dec y x0).
+        rewrite <- e in H5. exfalso. apply H. right. apply in_or_app. auto. auto. }
       unfold Partition in H1. destruct H1. destruct H5. destruct H6.
       rewrite H7. auto. unfold dom. rewrite Heqo. intro. inversion H8.
-      admit.
+      { intro. apply H. rewrite H5. left. auto. }
       rewrite store_update_lookup_diff.
       rewrite store_update_lookup_same.
       rewrite heap_update_heap_clear_cancel; auto.
       apply ccond with (t := s); auto.
-      admit.
-      admit.
+      { intro. intro. unfold store_update. destruct (Nat.eq_dec y x0).
+        rewrite <- e in H5. exfalso. apply H. right. apply in_or_app. auto. auto. }
+      { intro. apply H. rewrite H5. left. auto. }
     * symmetry in Heqo0.
       pose proof (heap_clear_Partition_heap_clear _ _ _ _ H1 Heqo0).
       apply H3 with (v := z) in H4.
@@ -546,16 +550,18 @@ simpl. split; intros.
       rewrite store_update_lookup_same in H4.
       rewrite heap_update_heap_clear_cancel in H4.
       apply ccond with (t := store_update s y z); auto.
-      admit.
+      { intro. intro. unfold store_update. destruct (Nat.eq_dec y x0).
+        rewrite <- e in H5. exfalso. apply H. right. apply in_or_app. auto. auto. }
       unfold Partition in H1. destruct H1. destruct H5. destruct H6.
       rewrite H7. auto. unfold dom. rewrite Heqo. intro. inversion H8.
-      admit.
+      { intro. apply H. rewrite H5. left. auto. }
       rewrite store_update_lookup_diff.
       rewrite store_update_lookup_same.
       rewrite heap_update_heap_clear_cancel; auto.
       apply ccond with (t := s); auto.
-      admit.
-      admit.
+      { intro. intro. unfold store_update. destruct (Nat.eq_dec y x0).
+        rewrite <- e in H5. exfalso. apply H. right. apply in_or_app. auto. auto. }
+      { intro. apply H. rewrite H5. left. auto. }
   + (* Use first part, H0 *)
     symmetry in Heqo.
     remember (h (s x)). destruct o.
@@ -564,7 +570,13 @@ simpl. split; intros.
       apply H0 in H4.
       rewrite heap_clear_heap_update_cancel in H4.
       auto.
-      admit.
+      { pose proof (Partition_not_dom h'' (heap_clear h (s x)) h' (s x) H1).
+        assert (~dom h'' (s x)). apply H5; clear H5.
+        intro. unfold dom in H5. apply H5. unfold heap_clear.
+        destruct (Z.eq_dec (s x) (s x)). auto. exfalso. apply n. auto.
+        intro. unfold dom in H5. apply H5. auto.
+        unfold dom in H6. destruct (h'' (s x)); auto.
+        exfalso. apply H6. intro. inversion H7. }
       split.
       rewrite heap_clear_cancel.
       auto. auto.
@@ -573,14 +585,21 @@ simpl. split; intros.
       rewrite store_update_lookup_same in H5.
       rewrite heap_clear_cancel in H5; auto.
       rewrite Heqo in H5. inversion H5.
-      admit.
+      { intro. apply fresh_notIn with (xs := x :: nil). rewrite H6. left. auto. }
     * symmetry in Heqo0.
       pose proof (heap_clear_Partition_heap_clear _ _ _ _ H1 Heqo0).
       apply H0 in H4.
       rewrite heap_clear_cancel in H4.
       rewrite heap_clear_cancel in H4. auto.
-      admit.
-      admit.
+      { pose proof (Partition_not_dom h'' (heap_clear h (s x)) h' (s x) H1).
+        assert (~dom h'' (s x)). apply H5; clear H5.
+        intro. unfold dom in H5. apply H5. unfold heap_clear.
+        destruct (Z.eq_dec (s x) (s x)). auto. exfalso. apply n. auto.
+        intro. unfold dom in H5. apply H5. auto.
+        unfold dom in H6. destruct (h'' (s x)); auto.
+        exfalso. apply H6. intro. inversion H7. }
+      { unfold heap_clear. destruct (Z.eq_dec (s x) (s x)).
+        auto. exfalso. apply n. auto. }
       split.
       rewrite heap_clear_cancel; auto.
       intro. exfalso. apply H5; clear H5. intros. intro.
@@ -588,8 +607,8 @@ simpl. split; intros.
       rewrite store_update_lookup_same in H5.
       rewrite heap_clear_cancel in H5; auto.
       rewrite Heqo in H5. inversion H5.
-      admit.
-Admitted.
+      { intro. apply fresh_notIn with (xs := x :: nil). rewrite H6. left. auto. }
+Qed.
 
 (* E5 *)
 Lemma cwlp_lookup_p1 (x: V) (e: expr) (h: heap) (s: store):
@@ -661,35 +680,103 @@ Qed.
 (* E6 *)
 Lemma cwlp_mutation (x: V) (e: expr) (p: cassert):
   valid (clequiv (cwlp (mutation x e) p) (cland (chasvaldash x) (csub_heap_update p x e))).
-Admitted.
+unfold valid; intros.
+simpl. split; intros.
+- destruct H.
+  split.
+  { intro.
+    apply H. apply step_mutation_fail. intro.
+    unfold dom in H2. remember (h (s x)). destruct o; auto.
+    specialize H1 with z.
+    rewrite store_update_lookup_same in H1.
+    rewrite store_update_lookup_diff in H1.
+    rewrite <- Heqo in H1. apply H1. auto.
+    intro. apply fresh_notIn with (xs := x :: nil).
+    rewrite H3. left. auto. }
+  specialize H0 with (heap_update h (s x) (e s)) s.
+  apply H0.
+  apply step_mutation. unfold dom. intro.
+  apply H. apply step_mutation_fail. intro. unfold dom in H2.
+  rewrite H1 in H2. apply H2. auto.
+- destruct H. split.
+  { intro. inversion H1.
+    apply H. intros.
+    rewrite store_update_lookup_same.
+    rewrite store_update_lookup_diff.
+    unfold dom in H3. intro. rewrite H7 in H3.
+    apply H3. intro. inversion H8.
+    intro. apply fresh_notIn with (xs := x :: nil).
+    rewrite H7. left. auto. }
+  intros. inversion H1. rewrite <- H8. auto.
+Qed.
 
 (* E7 *)
 Lemma cwlp_new (x: V) (e: expr) (p: cassert):
+  ~In x (evar e) ->
   valid (clequiv (cwlp (new x e) p) (clforall x (climp (clnot (chasvaldash x)) (csub_heap_update p x e)))).
-Admitted.
+intros. unfold valid; intros.
+simpl. split; intros.
+- destruct H0.
+  rewrite store_update_lookup_same.
+  rewrite econd with (t := s).
+  apply H2. apply step_new. intro.
+  cut (false = true). intro. inversion H4.
+  apply H1; clear H1. intro.
+  unfold dom in H3. remember (h v). destruct o.
+  specialize H1 with z.
+  rewrite store_update_lookup_same in H1.
+  rewrite store_update_lookup_diff in H1.
+  rewrite store_update_lookup_same in H1.
+  rewrite Heqo in H1. apply H1. auto.
+  intro. apply fresh_notIn with (xs := x :: nil). rewrite H4. left. auto.
+  apply H3; auto.
+  intro. intro. unfold store_update.
+  destruct (Nat.eq_dec x x0). exfalso. apply H. rewrite e0. auto. auto.
+- split. intro. inversion H1.
+  intros. inversion H1.
+  specialize H0 with n.
+  enough (p (heap_update h (store_update s x n x) (e (store_update s x n)), store_update s x n)).
+  rewrite store_update_lookup_same in H9.
+  rewrite econd with (t := s) in H9. auto.
+  intro. intro. unfold store_update. destruct (Nat.eq_dec x x1); auto.
+  destruct H. rewrite e1. auto.
+  apply H0; clear H0. intro. exfalso. apply H0; clear H0.
+  intro.
+  rewrite store_update_lookup_same.
+  rewrite store_update_lookup_diff.
+  rewrite store_update_lookup_same.
+  unfold dom in H3. intro. apply H3. intro.
+    rewrite H0 in H9. inversion H9.
+  intro. apply fresh_notIn with (xs := x :: nil).
+  rewrite H0. left. auto.
+Qed.
 
 (* E8 *)
 Lemma cwlp_dispose (x: V) (p: cassert):
   valid (clequiv (cwlp (dispose x) p) (cland (chasvaldash x) (csub_heap_clear p x))).
-Admitted.
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+unfold valid; intros.
+simpl. split; intros.
+- destruct H. split.
+  { intro. apply H. apply step_dispose_fail.
+    intro. unfold dom in H2. remember (h (s x)). destruct o; auto.
+    specialize H1 with z. apply H1.
+    rewrite store_update_lookup_same.
+    rewrite store_update_lookup_diff.
+    auto.
+    intro. apply fresh_notIn with (xs := x :: nil).
+    rewrite H3. left. auto. }
+  apply H0. apply step_dispose.
+  unfold dom. intro.
+  apply H. apply step_dispose_fail. intro.
+  unfold dom in H2. rewrite H1 in H2. apply H2; auto.
+- destruct H. split.
+  { intro. inversion H1. apply H4. unfold dom. intro.
+    remember (h (s x)). destruct o. inversion H6.
+    apply H. intro. intro.
+    rewrite store_update_lookup_same in H7.
+    rewrite store_update_lookup_diff in H7.
+    rewrite <- Heqo in H7. inversion H7.
+    intro. apply fresh_notIn with (xs := x :: nil).
+    rewrite H8. left. auto. }
+  intros. inversion H1. rewrite <- H7. auto.
+Qed.

@@ -424,6 +424,10 @@ Proposition Partition_dom_right2 (h h1 h2: heap) (x: Z):
   Partition h h1 h2 -> dom h2 x -> ~dom h1 x.
 Admitted.
 
+Proposition Partition_not_dom (h h1 h2: heap) (x: Z):
+  Partition h h1 h2 -> ~dom h1 x -> ~dom h2 x -> ~dom h x.
+Admitted.
+
 Proposition Partition_heap_update_split (h h1 h2: heap) (k v: Z):
   Partition (heap_update h k v) h1 h2 ->
   (exists h1', Partition h h1' h2 /\ h1 = heap_update h1' k v /\ ~dom h2 k) \/
