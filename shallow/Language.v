@@ -460,76 +460,79 @@ Proposition Partition_heap_clear_heap_update (h h' h'' hh: heap) (k v: Z):
 Admitted.
 
 Proposition heap_clear_Partition_heap_update (h h' h'': heap) (k v: Z):
-  Partition h'' (heap_clear h k) h' ->
-    (h k = Some v -> Partition (heap_update h'' k v) h (heap_clear h' k)) /\
-    (h k = None -> Partition (heap_clear h'' k) h (heap_clear h' k)).
-intros. split; intros.
-- unfold Partition in *.
-  split; try split; try split; intros.
-  + unfold dom in H1. unfold heap_update in H1. unfold dom. unfold heap_clear.
-    destruct H. unfold dom in H. unfold heap_clear in H.
-    specialize H with k0.
-    destruct (Z.eq_dec k k0).
-    left. intro. rewrite <- e in H3. rewrite H0 in H3. inversion H3.
-    apply H in H1; clear H. auto.
-  + intro. destruct H1.
-    unfold heap_clear in H2. unfold dom in H1, H2.
-    destruct (Z.eq_dec k k0). apply H2; auto.
-    destruct H. destruct H3.
-    eapply H3. unfold dom. unfold heap_clear. split.
-    2: apply H2.
-    destruct (Z.eq_dec k k0). exfalso. apply n. auto. auto.
-  + unfold heap_update.
-    destruct (Z.eq_dec k k0). rewrite <- e. auto.
-    destruct H. destruct H2. destruct H3.
-    pose proof (H3 k0).
-    rewrite H5.
-    unfold heap_clear. destruct (Z.eq_dec k k0).
-    exfalso. apply n. auto. auto.
-    unfold dom. unfold heap_clear.
-    destruct (Z.eq_dec k k0).
-    exfalso. apply n. auto. intro.
-    unfold dom in H1. rewrite H6 in H1.
-    apply H1. auto.
-  + unfold heap_update. unfold heap_clear.
-    unfold dom in H1. unfold heap_clear in H1.
-    destruct (Z.eq_dec k k0).
-    exfalso. apply H1. auto.
-    destruct H. destruct H2. destruct H3.
-    apply H4. unfold dom. auto.
-- unfold Partition in *.
-  split; try split; try split; intros.
-  + unfold dom in H1. unfold heap_clear in H1.
-    destruct (Z.eq_dec k k0). exfalso. apply H1; auto.
-    destruct H. specialize H with k0.
-    fold (dom h'' k0) in H1. apply H in H1. destruct H1.
-    left. unfold dom in H1. unfold heap_clear in H1.
-    unfold dom. destruct (Z.eq_dec k k0). exfalso. apply n; auto.
-    auto. right. unfold dom. unfold heap_clear.
-    destruct (Z.eq_dec k k0). exfalso. apply n. auto.
-    unfold dom in H1. auto.
-  + intro. destruct H1.
-    unfold dom in H1.
-    destruct (Z.eq_dec k k0). rewrite e in H0. apply H1. auto.
-    destruct H. destruct H3. specialize H3 with k0. apply H3. split.
-    unfold dom. unfold heap_clear. destruct (Z.eq_dec k k0).
-    exfalso. apply n. auto. auto.
-    unfold dom. unfold dom in H2. unfold heap_clear in H2.
-    destruct (Z.eq_dec k k0). exfalso. apply n; auto. auto.
-  + unfold heap_clear.
-    destruct (Z.eq_dec k k0). exfalso. unfold dom in H1.
-      apply H1. rewrite <- e. auto.
-    destruct H. destruct H2. destruct H3.
-    rewrite H3.
-    unfold heap_clear.
-    destruct (Z.eq_dec k k0). exfalso. apply n. auto. auto.
-    unfold dom. unfold heap_clear.
-    destruct (Z.eq_dec k k0). exfalso. apply n. auto.
-    unfold dom in H1. auto.
-  + unfold heap_clear. unfold dom in H1. unfold heap_clear in H1.
-    destruct (Z.eq_dec k k0). auto.
-    destruct H. destruct H2. destruct H3. apply H4.
-    unfold dom. auto.
+  Partition h'' (heap_clear h k) h' -> h k = Some v -> Partition (heap_update h'' k v) h (heap_clear h' k).
+intros.
+unfold Partition in *.
+split; try split; try split; intros.
++ unfold dom in H1. unfold heap_update in H1. unfold dom. unfold heap_clear.
+  destruct H. unfold dom in H. unfold heap_clear in H.
+  specialize H with k0.
+  destruct (Z.eq_dec k k0).
+  left. intro. rewrite <- e in H3. rewrite H0 in H3. inversion H3.
+  apply H in H1; clear H. auto.
++ intro. destruct H1.
+  unfold heap_clear in H2. unfold dom in H1, H2.
+  destruct (Z.eq_dec k k0). apply H2; auto.
+  destruct H. destruct H3.
+  eapply H3. unfold dom. unfold heap_clear. split.
+  2: apply H2.
+  destruct (Z.eq_dec k k0). exfalso. apply n. auto. auto.
++ unfold heap_update.
+  destruct (Z.eq_dec k k0). rewrite <- e. auto.
+  destruct H. destruct H2. destruct H3.
+  pose proof (H3 k0).
+  rewrite H5.
+  unfold heap_clear. destruct (Z.eq_dec k k0).
+  exfalso. apply n. auto. auto.
+  unfold dom. unfold heap_clear.
+  destruct (Z.eq_dec k k0).
+  exfalso. apply n. auto. intro.
+  unfold dom in H1. rewrite H6 in H1.
+  apply H1. auto.
++ unfold heap_update. unfold heap_clear.
+  unfold dom in H1. unfold heap_clear in H1.
+  destruct (Z.eq_dec k k0).
+  exfalso. apply H1. auto.
+  destruct H. destruct H2. destruct H3.
+  apply H4. unfold dom. auto.
+Qed.
+
+Proposition heap_clear_Partition_heap_clear (h h' h'': heap) (k: Z):
+  Partition h'' (heap_clear h k) h' -> h k = None -> Partition (heap_clear h'' k) h (heap_clear h' k).
+intros.
+unfold Partition in *.
+split; try split; try split; intros.
++ unfold dom in H1. unfold heap_clear in H1.
+  destruct (Z.eq_dec k k0). exfalso. apply H1; auto.
+  destruct H. specialize H with k0.
+  fold (dom h'' k0) in H1. apply H in H1. destruct H1.
+  left. unfold dom in H1. unfold heap_clear in H1.
+  unfold dom. destruct (Z.eq_dec k k0). exfalso. apply n; auto.
+  auto. right. unfold dom. unfold heap_clear.
+  destruct (Z.eq_dec k k0). exfalso. apply n. auto.
+  unfold dom in H1. auto.
++ intro. destruct H1.
+  unfold dom in H1.
+  destruct (Z.eq_dec k k0). rewrite e in H0. apply H1. auto.
+  destruct H. destruct H3. specialize H3 with k0. apply H3. split.
+  unfold dom. unfold heap_clear. destruct (Z.eq_dec k k0).
+  exfalso. apply n. auto. auto.
+  unfold dom. unfold dom in H2. unfold heap_clear in H2.
+  destruct (Z.eq_dec k k0). exfalso. apply n; auto. auto.
++ unfold heap_clear.
+  destruct (Z.eq_dec k k0). exfalso. unfold dom in H1.
+    apply H1. rewrite <- e. auto.
+  destruct H. destruct H2. destruct H3.
+  rewrite H3.
+  unfold heap_clear.
+  destruct (Z.eq_dec k k0). exfalso. apply n. auto. auto.
+  unfold dom. unfold heap_clear.
+  destruct (Z.eq_dec k k0). exfalso. apply n. auto.
+  unfold dom in H1. auto.
++ unfold heap_clear. unfold dom in H1. unfold heap_clear in H1.
+  destruct (Z.eq_dec k k0). auto.
+  destruct H. destruct H2. destruct H3. apply H4.
+  unfold dom. auto.
 Qed.
 
 Proposition heap_clear_dom (h: heap) (k: Z):
@@ -551,6 +554,24 @@ intro.
 apply functional_extensionality; intro.
 unfold heap_update. unfold heap_clear.
 destruct (Z.eq_dec k x). rewrite <- e. rewrite H. reflexivity.
+auto.
+Qed.
+
+Proposition heap_clear_cancel (h: heap) (k: Z):
+  h k = None -> heap_clear h k = h.
+intro.
+apply functional_extensionality; intro.
+unfold heap_clear.
+destruct (Z.eq_dec k x). rewrite <- e. auto.
+auto.
+Qed.
+
+Proposition heap_clear_heap_update_cancel (h: heap) (k v: Z):
+  h k = None -> heap_clear (heap_update h k v) k = h.
+intro.
+apply functional_extensionality; intro.
+unfold heap_update. unfold heap_clear.
+destruct (Z.eq_dec k x). rewrite <- e. auto.
 auto.
 Qed.
 

@@ -523,17 +523,15 @@ simpl. split; intros.
     symmetry in Heqo.
     remember (h (s x)). destruct o.
     * symmetry in Heqo0.
-      pose proof (heap_clear_Partition_heap_update _ _ _ _ z0 H1).
-      destruct H4.
-      apply H4 in Heqo0. clear H4 H5.
-      apply H3 with (v := z) in Heqo0.
-      rewrite store_update_lookup_diff in Heqo0.
-      rewrite store_update_lookup_same in Heqo0.
-      rewrite heap_update_cancel in Heqo0.
+      pose proof (heap_clear_Partition_heap_update _ _ _ _ z0 H1 Heqo0).
+      apply H3 with (v := z) in H4.
+      rewrite store_update_lookup_diff in H4.
+      rewrite store_update_lookup_same in H4.
+      rewrite heap_update_cancel in H4.
       apply ccond with (t := store_update s y z); auto.
       admit.
-      unfold Partition in H1. destruct H1. destruct H4. destruct H5.
-      rewrite H6. auto. unfold dom. rewrite Heqo. intro. inversion H7.
+      unfold Partition in H1. destruct H1. destruct H5. destruct H6.
+      rewrite H7. auto. unfold dom. rewrite Heqo. intro. inversion H8.
       admit.
       rewrite store_update_lookup_diff.
       rewrite store_update_lookup_same.
@@ -542,16 +540,15 @@ simpl. split; intros.
       admit.
       admit.
     * symmetry in Heqo0.
-      pose proof (heap_clear_Partition_heap_update _ _ _ _ (0%Z) H1).
-      destruct H4. clear H4. apply H5 in Heqo0. clear H5.
-      apply H3 with (v := z) in Heqo0.
-      rewrite store_update_lookup_diff in Heqo0.
-      rewrite store_update_lookup_same in Heqo0.
-      rewrite heap_update_heap_clear_cancel in Heqo0.
+      pose proof (heap_clear_Partition_heap_clear _ _ _ _ H1 Heqo0).
+      apply H3 with (v := z) in H4.
+      rewrite store_update_lookup_diff in H4.
+      rewrite store_update_lookup_same in H4.
+      rewrite heap_update_heap_clear_cancel in H4.
       apply ccond with (t := store_update s y z); auto.
       admit.
-      unfold Partition in H1. destruct H1. destruct H4. destruct H5.
-      rewrite H6. auto. unfold dom. rewrite Heqo. intro. inversion H7.
+      unfold Partition in H1. destruct H1. destruct H5. destruct H6.
+      rewrite H7. auto. unfold dom. rewrite Heqo. intro. inversion H8.
       admit.
       rewrite store_update_lookup_diff.
       rewrite store_update_lookup_same.
@@ -560,7 +557,38 @@ simpl. split; intros.
       admit.
       admit.
   + (* Use first part, H0 *)
-    admit.
+    symmetry in Heqo.
+    remember (h (s x)). destruct o.
+    * symmetry in Heqo0.
+      pose proof (heap_clear_Partition_heap_update _ _ _ _ z H1 Heqo0).
+      apply H0 in H4.
+      rewrite heap_clear_heap_update_cancel in H4.
+      auto.
+      admit.
+      split.
+      rewrite heap_clear_cancel.
+      auto. auto.
+      intro. exfalso. apply H5; clear H5. intros. intro.
+      rewrite store_update_lookup_diff in H5.
+      rewrite store_update_lookup_same in H5.
+      rewrite heap_clear_cancel in H5; auto.
+      rewrite Heqo in H5. inversion H5.
+      admit.
+    * symmetry in Heqo0.
+      pose proof (heap_clear_Partition_heap_clear _ _ _ _ H1 Heqo0).
+      apply H0 in H4.
+      rewrite heap_clear_cancel in H4.
+      rewrite heap_clear_cancel in H4. auto.
+      admit.
+      admit.
+      split.
+      rewrite heap_clear_cancel; auto.
+      intro. exfalso. apply H5; clear H5. intros. intro.
+      rewrite store_update_lookup_diff in H5.
+      rewrite store_update_lookup_same in H5.
+      rewrite heap_clear_cancel in H5; auto.
+      rewrite Heqo in H5. inversion H5.
+      admit.
 Admitted.
 
 (* E5 *)
