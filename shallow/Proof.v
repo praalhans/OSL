@@ -780,3 +780,35 @@ simpl. split; intros.
     rewrite H8. left. auto. }
   intros. inversion H1. rewrite <- H7. auto.
 Qed.
+
+Record results := {
+  R1  := cwlp_cland_distr
+; R2  := cwlp_diverge
+; R3  := cwlp_skip
+; R4  := cwlp_comp
+; R5  := cwlp_ite
+; R6  := cwlp_while
+; R7  := cwlp_basic_ctest
+; R8  := cwlp_basic_chasval
+; R9  := cwlp_basic_climp
+; R10 := cwlp_basic_clforall
+; R11 := cwlp_basic_csand
+; R12 := cwlp_basic_csimp
+; R13 := csub_heap_update_ctest
+; R14 := csub_heap_update_chasval
+; R15 := csub_heap_update_climp
+; R16 := csub_heap_update_clforall
+; R17 := csub_heap_update_csand
+; R18 := csub_heap_update_csimp
+; R19 := csub_heap_clear_ctest
+; R20 := csub_heap_clear_chasval
+; R21 := csub_heap_clear_climp
+; R22 := csub_heap_clear_clforall
+; R23 := csub_heap_clear_csand
+; R24 := csub_heap_clear_csimp
+; R25 := cwlp_lookup
+; R26 := cwlp_mutation
+; R27 := cwlp_new
+; R28 := cwlp_dispose
+}.
+Print Assumptions results.

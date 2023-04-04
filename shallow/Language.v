@@ -414,24 +414,61 @@ Definition Partition (h h1 h2: heap): Prop :=
 
 Proposition Partition_comm (h h1 h2: heap):
   Partition h h1 h2 -> Partition h h2 h1.
-Admitted.
+unfold Partition. intro.
+destruct H as (H0 & H1 & H2).
+split; try split; try tauto.
+- intros. apply H0 in H. destruct H; auto.
+- intros. intro. destruct H1 with (k := k). tauto.
+Qed.
 
 Proposition Partition_dom_right1 (h h1 h2: heap) (x: Z):
   Partition h h1 h2 -> dom h1 x -> ~dom h2 x.
-Admitted.
+intros. unfold Partition in H. destruct H. destruct H1.
+intro.
+destruct H1 with (k := x). auto.
+Qed.
 
 Proposition Partition_dom_right2 (h h1 h2: heap) (x: Z):
   Partition h h1 h2 -> dom h2 x -> ~dom h1 x.
-Admitted.
+intros. unfold Partition in H. destruct H. destruct H1.
+intro.
+destruct H1 with (k := x). auto.
+Qed.
 
 Proposition Partition_not_dom (h h1 h2: heap) (x: Z):
   Partition h h1 h2 -> ~dom h1 x -> ~dom h2 x -> ~dom h x.
-Admitted.
+intros. unfold Partition in H. destruct H. destruct H2.
+intro. apply H in H4. destruct H4; tauto.
+Qed.
 
 Proposition Partition_heap_update_split (h h1 h2: heap) (k v: Z):
   Partition (heap_update h k v) h1 h2 ->
   (exists h1', Partition h h1' h2 /\ h1 = heap_update h1' k v /\ ~dom h2 k) \/
   (exists h2', Partition h h1 h2' /\ h2 = heap_update h2' k v /\ ~dom h1 k).
+intros.
+enough (dom h1 k \/ dom h2 k). destruct H0.
+- left.
+  pose proof (Partition_dom_right1 _ _ _ _ H H0).
+  remember (h k). destruct o.
+  + exists (heap_update h1 k z). split.
+    unfold Partition in H. destruct H as (H & H2 & H3 & H4).
+    unfold Partition. split; try split; try split.
+    * intros. unfold dom. unfold heap_update.
+      unfold dom in H. unfold heap_update in H.
+      specialize H with k0. destruct (Z.eq_dec k k0).
+      left. intro. inversion H6.
+      apply H in H5. auto.
+    * intros. intro. destruct H5.
+      unfold dom in H5. unfold heap_update in H5.
+      destruct (Z.eq_dec k k0).
+      apply H1. rewrite e. auto.
+      apply H2 with (k := k0). split. apply H5. auto.
+    * intros. unfold heap_update. unfold dom in H5.
+      unfold heap_update in H5.
+      destruct (Z.eq_dec k k0). rewrite <- e. auto.
+      apply H3 in H5. unfold heap_update in H5.
+      destruct (Z.eq_dec k k0). exfalso. apply n; auto. auto.
+    * 
 Admitted.
 
 Proposition Partition_heap_update (h h' h'': heap) (k v: Z):
@@ -541,7 +578,11 @@ Qed.
 
 Proposition heap_clear_dom (h: heap) (k: Z):
   ~dom h k -> heap_clear h k = h.
-Admitted.
+unfold dom; unfold heap_clear; intros.
+apply functional_extensionality; intro.
+destruct (Z.eq_dec k x). rewrite e in H.
+destruct (h x). exfalso. apply H. intro. inversion H0. auto. auto.
+Qed.
 
 Proposition heap_update_cancel (h: heap) (k v z: Z):
   h k = Some z -> heap_update (heap_update h k v) k z = h.
