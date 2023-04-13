@@ -1,17 +1,10 @@
--Q src OnSeparationLogic
--Q proof SeparationLogicProofSystem
+-Q deep OnSeparationLogic
 -Q shallow ShallowSeparationLogic
-src/Util.v
-src/Heap.v
-src/Language.v
-src/Classical.v
-src/Intuitionistic.v
-proof/Util.v
-proof/Model.v
-proof/Syntax.v
-proof/Semantics.v
-proof/System.v
-proof/Soundness.v
+deep/Util.v
+deep/Heap.v
+deep/Language.v
+deep/Classical.v
+deep/Intuitionistic.v
 shallow/Language.v
 shallow/Proof.v
 
