@@ -5,6 +5,8 @@ deep/Heap.v
 deep/Language.v
 deep/Classical.v
 deep/Intuitionistic.v
+deep/StrongInduction.v
+deep/Small.v
 shallow/Language.v
 shallow/Proof.v
 
