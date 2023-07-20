@@ -189,8 +189,8 @@ split; intro.
   apply dom_spec in H. apply H; auto.
 Qed.
 
-Proposition satisfy_lnot_hasvaldash (h: heap) (s: store) (x: V):
-  satisfy h s (lnot (hasvaldash x)) <-> ~dom h (s x).
+Proposition satisfy_lnot_hasvaldash (h: heap) (s: store) (e: expr):
+  satisfy h s (lnot (hasvaldash e)) <-> ~dom h (e s).
 rewrite satisfy_lnot.
 apply not_iff_compat.
 apply satisfy_hasvaldash.
@@ -231,10 +231,12 @@ unfold emp; split; intros.
 - rewrite satisfy_lforall in H.
   specialize (H x).
   rewrite satisfy_lnot_hasvaldash in H.
+  simpl in H.
   rewrite store_update_lookup_same in H.
   assumption.
 - rewrite satisfy_lforall; intros.
   rewrite satisfy_lnot_hasvaldash.
+  simpl.
   rewrite store_update_lookup_same.
   apply H.
 Qed.
@@ -397,6 +399,40 @@ split; intros.
   intros.
   apply H.
 Qed.
+
+(* ========== *)
+(* VALIDITIES *)
+(* ========== *)
+
+Proposition satisfy_adjunct (h: heap) (s: store) (p q: assert):
+  satisfy h s (limp (sand p (simp p q)) q).
+rewrite satisfy_limp; intro.
+eapply satisfy_sand_elim in H. apply H.
+intros.
+rewrite satisfy_simp in H2.
+eapply H2.
+apply Partition_comm.
+apply H0.
+apply H1.
+Qed.
+
+Proposition satisfy_ext (h: heap) (s: store) (p q: assert):
+  satisfy h s (limp p (simp q (sand p q))).
+rewrite satisfy_limp; intro.
+rewrite satisfy_simp; intros.
+eapply satisfy_sand_intro.
+apply H0.
+apply H.
+apply H1.
+Qed.
+
+Proposition satisfy_ext2 (h: heap) (s: store) (p: assert) (e: expr):
+  satisfy h s (limp (land (lnot (hasvaldash e)) (simp (pointstodash e) (sand (pointstodash e) p))) p).
+rewrite satisfy_limp; intro.
+rewrite satisfy_land in H; destruct H.
+rewrite satisfy_lnot_hasvaldash in H.
+rewrite satisfy_simp in H0.
+Admitted.
 
 (* =================================== *)
 (* COINCIDENCE CONDITION ON ASSERTIONS *)
@@ -1902,6 +1938,7 @@ rewrite satisfy_limp; intro.
 rewrite satisfy_lforall; intro.
 rewrite satisfy_limp; intro.
 rewrite satisfy_lnot_hasvaldash in H3.
+simpl in H3.
 rewrite store_update_lookup_same in H3.
 unfold strong_partial_correct in H.
 specialize H with h s.
