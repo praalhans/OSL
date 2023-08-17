@@ -1273,6 +1273,15 @@ Inductive assignment :=
 | new: V -> expr -> assignment
 | dispose: V -> assignment.
 
+Definition asvar (a: assignment): list V :=
+  match a with
+  | basic x e => x :: evar e
+  | lookup x e => x :: evar e
+  | mutation x e => x :: evar e
+  | new x e => x :: evar e
+  | dispose x => x :: nil
+  end.
+
 Inductive program :=
 | assign: assignment -> program
 | diverge: program
@@ -1281,6 +1290,16 @@ Inductive program :=
 | ite: guard -> program -> program -> program
 | while: guard -> program -> program.
 Coercion assign: assignment >-> program.
+
+Fixpoint pvar (p: program): list V :=
+  match p with
+  | assign a => asvar a
+  | diverge => nil
+  | skip => nil
+  | comp S1 S2 => pvar S1 ++ pvar S2
+  | ite g S1 S2 => gvar g ++ pvar S1 ++ pvar S2
+  | while g S1 => gvar g ++ pvar S1
+  end.
 
 (* ================================================ *)
 (* SEMANTICS OF PROGRAMS, SEE FIGURE 1 IN THE PAPER *)

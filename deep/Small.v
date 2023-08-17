@@ -396,7 +396,6 @@ induction n; intros.
 - inversion H.
   apply IHn in H1.
   apply tan_one in H2.
-  Search "+" S.
   rewrite <- Nat.add_1_r.
   eapply smallstep_tan_append.
   apply H1. apply H2.
@@ -1619,6 +1618,9 @@ Inductive HS_weakest (M: machine_model state): spec -> Prop :=
 | weakest_HS (pSq: spec): HS (HS_weakest M) pSq -> HS_weakest M pSq
 | weakest_oper (o: op) (Y: state -> Prop): HS_weakest M (weakest_pre M (oper o) Y, oper o, Y).
 
+End AbstractHoare.
+
+End ProgramSignature.
 
 
 
