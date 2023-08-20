@@ -1579,125 +1579,149 @@ Qed.
 (* SOUNDNESS FRAME RULE *)
 (* ==================== *)
 
-Proposition soundness_frame (p q r: assert) (x: program):
+Proposition soundness_frame (p q r: assert) (x: assignment):
   (forall z, In z (pvar x) -> ~In z (avar r)) ->
   strong_partial_correct (mkhoare p x q) ->
   strong_partial_correct (mkhoare (sand p r) x (sand q r)).
-induction x; intros.
-- destruct a; simpl in H.
-  + (* basic assignment *)
-    unfold strong_partial_correct in *; intros.
-    split.
-    intro. inversion H2.
-    intros.
-    eapply satisfy_sand_elim. apply H1.
-    intros.
-    apply H0 in H4. destruct H4.
-    inversion H2.
-    pose proof (step_basic v e h1 s).
-    apply H6 in H7.
-    eapply satisfy_sand_intro.
-    rewrite <- H12.
-    apply H3. auto.
-    eapply acond; [|apply H5].
-    intro. intro.
-    unfold store_update.
-    destruct (Nat.eq_dec v x0).
-    exfalso. eapply H. left. apply e1. apply H14. auto.
-  + (* lookup *)
-    unfold strong_partial_correct in *; intros.
-    split.
-    intro. inversion H2.
-    cut (satisfy h s (false)). intro. simpl in H8. inversion H8.
-    eapply satisfy_sand_elim. apply H1.
-    intros.
-    apply H0 in H9. destruct H9.
-    exfalso. apply H9.
-    apply step_lookup_fail.
-    cut (~(dom h1 (e s))). intro.
-    rewrite dom_spec in H12.
-    destruct (h1 (e s)); auto. exfalso. apply H12. intro. inversion H13.
-    intro.
-    eapply Partition_dom_inv_left in H12.
-    rewrite dom_spec in H12. apply H12. apply H4. apply H8.
-    intros.
-    eapply satisfy_sand_elim. apply H1.
-    intros.
-    apply H0 in H4. destruct H4.
-    cut (exists z, h1 (e s) = Some z). intro. destruct H7.
-    pose proof (step_lookup v e h1 s x H7).
-    apply H6 in H8.
-    inversion H2. rewrite <- H14.
-    eapply satisfy_sand_intro. apply H3.
-    rewrite <- H14 in H10.
-    pose proof (Partition_spec1 _ _ _ H3 (e s)).
-    rewrite H16 in H10. rewrite H10 in H7. inversion H7. apply H8.
-    apply dom_spec. intro. rewrite H7 in H17. inversion H17.
-    eapply acond; [|apply H5].
-    intro. intro. unfold store_update.
-    destruct (Nat.eq_dec v x1).
-    exfalso. eapply H. left. apply e1. apply H16. auto.
-    pose proof (dom_dec h1 (e s)). destruct H7.
-    rewrite dom_spec in H7. destruct (h1 (e s)). exists z. auto.
-    exfalso. apply H7. auto.
-    exfalso. apply H7. apply dom_spec. intro.
-    apply H4. apply step_lookup_fail. apply H8.
-  + (* mutation *)
-    unfold strong_partial_correct in *; intros.
-    split.
-    intro. inversion H2.
-    cut (satisfy h s (false)). intro. simpl in H8. inversion H8.
-    eapply satisfy_sand_elim. apply H1.
-    intros.
-    apply H0 in H9. destruct H9.
-    exfalso. apply H9.
-    apply step_mutation_fail.
-    intro.
-    apply H4.
-    apply dom_spec. apply dom_spec in H12.
-    erewrite Partition_spec1. apply H12. apply H8.
-    apply dom_spec; auto.
-    intros.
-    eapply satisfy_sand_elim. apply H1.
-    intros.
-    apply H0 in H4. destruct H4.
-    pose proof (step_mutation v e h1 s).
-    inversion H2. rewrite <- H14 in *.
-    assert (dom h1 (s v)).
-    apply dom_spec. intro. apply H4. apply step_mutation_fail. intro.
-    assert (dom h1 (s v)). apply H16.
-    apply dom_spec in H17. apply H17. auto.
-    pose proof (H7 H15). apply H6 in H16.
-    eapply satisfy_sand_intro.
-    pose proof (heap_update_substitution_lemma_p7 h1 h2 h (s v) (e s) H3).
-    apply H17. eapply Partition_dom_right1. apply H3. apply H15. auto. auto.
-  + (* new *)
-    admit.
-  + (* dispose *)
-    admit.
-- (* diverge *)
-  unfold strong_partial_correct in *.
-  intros. split. intro. inversion H2.
-  intros. inversion H2.
-- (* skip *)
-  unfold strong_partial_correct in *.
-  intros. split. intro. inversion H2.
+intros.
+destruct x; simpl in H.
+- (* basic assignment *)
+  unfold strong_partial_correct in *; intros.
+  split.
+  intro. inversion H2.
   intros.
   eapply satisfy_sand_elim. apply H1.
-  intros. apply H0 in H4. destruct H4.
-  specialize H6 with h1 s.
-  pose proof (step_skip h1 s).
+  intros.
+  apply H0 in H4. destruct H4.
+  inversion H2.
+  pose proof (step_basic v e h1 s).
   apply H6 in H7.
-  inversion H2. rewrite <- H11. rewrite <- H12.
   eapply satisfy_sand_intro.
-  apply H3. auto. auto.
-- (* composition *)
-  admit.
-- (* if *)
-  admit.
-- (* while *)
-  admit.
-Admitted.
+  rewrite <- H12.
+  apply H3. auto.
+  eapply acond; [|apply H5].
+  intro. intro.
+  unfold store_update.
+  destruct (Nat.eq_dec v x0).
+  exfalso. eapply H. left. apply e1. apply H14. auto.
+- (* lookup *)
+  unfold strong_partial_correct in *; intros.
+  split.
+  intro. inversion H2.
+  cut (satisfy h s (false)). intro. simpl in H8. inversion H8.
+  eapply satisfy_sand_elim. apply H1.
+  intros.
+  apply H0 in H9. destruct H9.
+  exfalso. apply H9.
+  apply step_lookup_fail.
+  cut (~(dom h1 (e s))). intro.
+  rewrite dom_spec in H12.
+  destruct (h1 (e s)); auto. exfalso. apply H12. intro. inversion H13.
+  intro.
+  eapply Partition_dom_inv_left in H12.
+  rewrite dom_spec in H12. apply H12. apply H4. apply H8.
+  intros.
+  eapply satisfy_sand_elim. apply H1.
+  intros.
+  apply H0 in H4. destruct H4.
+  cut (exists z, h1 (e s) = Some z). intro. destruct H7.
+  pose proof (step_lookup v e h1 s x H7).
+  apply H6 in H8.
+  inversion H2. rewrite <- H14.
+  eapply satisfy_sand_intro. apply H3.
+  rewrite <- H14 in H10.
+  pose proof (Partition_spec1 _ _ _ H3 (e s)).
+  rewrite H16 in H10. rewrite H10 in H7. inversion H7. apply H8.
+  apply dom_spec. intro. rewrite H7 in H17. inversion H17.
+  eapply acond; [|apply H5].
+  intro. intro. unfold store_update.
+  destruct (Nat.eq_dec v x1).
+  exfalso. eapply H. left. apply e1. apply H16. auto.
+  pose proof (dom_dec h1 (e s)). destruct H7.
+  rewrite dom_spec in H7. destruct (h1 (e s)). exists z. auto.
+  exfalso. apply H7. auto.
+  exfalso. apply H7. apply dom_spec. intro.
+  apply H4. apply step_lookup_fail. apply H8.
+- (* mutation *)
+  unfold strong_partial_correct in *; intros.
+  split.
+  intro. inversion H2.
+  cut (satisfy h s (false)). intro. simpl in H8. inversion H8.
+  eapply satisfy_sand_elim. apply H1.
+  intros.
+  apply H0 in H9. destruct H9.
+  exfalso. apply H9.
+  apply step_mutation_fail.
+  intro.
+  apply H4.
+  apply dom_spec. apply dom_spec in H12.
+  erewrite Partition_spec1. apply H12. apply H8.
+  apply dom_spec; auto.
+  intros.
+  eapply satisfy_sand_elim. apply H1.
+  intros.
+  apply H0 in H4. destruct H4.
+  pose proof (step_mutation v e h1 s).
+  inversion H2. rewrite <- H14 in *.
+  assert (dom h1 (s v)).
+  apply dom_spec. intro. apply H4. apply step_mutation_fail. intro.
+  assert (dom h1 (s v)). apply H16.
+  apply dom_spec in H17. apply H17. auto.
+  pose proof (H7 H15). apply H6 in H16.
+  eapply satisfy_sand_intro.
+  pose proof (heap_update_substitution_lemma_p7 h1 h2 h (s v) (e s) H3).
+  apply H17. eapply Partition_dom_right1. apply H3. apply H15. auto. auto.
+- (* new *)
+  unfold strong_partial_correct in *; intros.
+  split.
+  intro. inversion H2.
+  intros.
+  eapply satisfy_sand_elim. apply H1.
+  inversion H2.
+  clear dependent s'. clear dependent h'.
+  intros.
+  apply H0 in H8. destruct H8.
+  assert (~dom h1 n).
+    intro. apply H4.
+    eapply Partition_dom_inv_left. apply H2. auto.
+  pose proof (step_new v e h1 s n H11).
+  apply H10 in H12.
+  assert (~dom h2 n).
+    intro. apply H4.
+    eapply Partition_dom_inv_right. apply H2. auto.
+  eapply satisfy_sand_intro.
+  eapply heap_update_substitution_lemma_p7. apply H2. apply H13. auto.
+  eapply acond; [|apply H9].
+  intro. intro. unfold store_update.
+  destruct (Nat.eq_dec v x0). exfalso. eapply H.
+  left. apply e1. apply H14. reflexivity.
+- (* dispose *)
+  unfold strong_partial_correct in *; intros.
+  split.
+  intro. inversion H2.
+  cut (satisfy h s (false)). intro. simpl in H7. inversion H7.
+  eapply satisfy_sand_elim. apply H1.
+  intros.
+  apply H0 in H8. destruct H8.
+  exfalso. apply H8.
+  apply step_dispose_fail.
+  intro.
+  apply H5.
+  eapply Partition_dom_inv_left. apply H7. auto.
+  intros.
+  eapply satisfy_sand_elim. apply H1.
+  intros.
+  apply H0 in H4. destruct H4.
+  assert (dom h1 (s v)). pose proof (dom_dec h1 (s v)). destruct H7; auto.
+  exfalso. apply H4. apply step_dispose_fail. apply H7.
+  pose proof (step_dispose v h1 s H7).
+  apply H6 in H8.
+  inversion H2. clear dependent h'. rewrite <- H14 in *. clear dependent s'.
+  apply Partition_comm in H3.
+  pose proof (Partition_heap_clear _ _ _ _ H3 H7).
+  apply Partition_comm in H2.
+  eapply satisfy_sand_intro. apply H2. apply H8. apply H5.
+Qed.
 
 (* ============================================ *)
 (* SOUNDNESS AND COMPLETENESS OF                *)
