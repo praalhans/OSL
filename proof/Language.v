@@ -771,5 +771,24 @@ sepimp_elim H2 (fun z z0 => z = x /\ z0 = w \/ z <> x /\ h1 z z0).
       unfold Split; destruct H0. apply H0. auto.
 Qed.
 
+End Application.
+
+Section Elimination.
+
+Lemma sep_after_root (A: Prop) (B C R: D -> D -> Prop):
+  rooted A (fun x y => B x y ** C x y) ->
+  (forall x y, R x y <-> B x y ** C x y) ->
+  rooted A R.
+intros.
+eapply root_above; [| apply H].
+simpl. intros. specialize H0 with x y. tauto.
+Qed.
+
+
+
+
+
+
+
 
 
